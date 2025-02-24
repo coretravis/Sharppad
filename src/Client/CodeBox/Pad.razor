@@ -1,0 +1,627 @@
+﻿@page "/"
+@using System.Net.Http.Json
+@using SharpPad.Client.Components
+@using SharpPad.Client.CodeBox.Consoles
+@using SharpPad.Client.CodeBox.Embeds
+@using SharpPad.Client.CodeBox.Library
+@using SharpPad.Client.CodeBox.Panels
+@using SharpPad.Client.Services.Components
+@using SharpPad.Client.Services.Library
+@using SharpPad.Client.Services.Streaming
+@using SharpPad.Shared.Models
+@using SharpPad.Shared.Models.Compiler
+@using SharpPad.Shared.Models.Nuget
+@using static SharpPad.Client.CodeBox.Panels.InputFilesPanel
+@using static SharpPad.Client.CodeBox.Panels.FilesPanel
+@using static SharpPad.Client.CodeBox.Panels.NugetPanel
+@implements IAsyncDisposable
+
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject ToastService ToastService
+@inject NavigationManager NavigationManager
+@inject ILibraryScriptClient LibraryClient
+@inject CodeExecutionClientService CodeExecutionClientService
+@inject ConfirmDialogService ConfirmDialogService
+
+<div class="sharppad-container @(IsRunning ? "running" : "")">
+    <Header IsLoggedIn="@isLoggedIn"
+                    IsRunning="@IsRunning"
+                    IsInteractive="@isInteractive"
+                    OnInteractiveToggle="ToggleInteractiveMode"
+                    OnNewScript="CreateNewScript"
+                    OnShare="ShowEmbedDialog"
+                    OnSaveScript="SaveScript"
+                    OnOpenLibrary="OpenScriptLibrary"
+                    OnLogin="NavigateToAuth"
+                    OnLogout="Logout"
+                    OnRun="RunCodeMode" />
+
+    <div class="main-content">
+        <Modal Title="Script Library"
+               IsOpen="@isScriptLibraryOpen"
+               Size="Modal.ModalSize.FullScreen"
+               Position="Modal.ModalPosition.Top"
+               IsOpenChanged="@(value => isScriptLibraryOpen = value)">
+            <ScriptLibrary ScriptSelected="LoadLibraryScript" />
+        </Modal>
+
+        <aside class="side-panel @(isPanelOpen ? "open" : "")">
+            <div class="panel-sections">
+                <MetaPanel ActiveSection="@activeSection"
+                           OnToggleSection="ToggleSection"
+                           MetaChanged="HandleMetaChanged"
+                           ScriptSaved="HandleScriptSaved"
+                           SectionIdentifier="meta"
+                           Script="selectedScript" />
+
+                <CompilerPanel ActiveSection="@activeSection"
+                               OnToggleSection="ToggleSection"
+                               SectionIdentifier="compiler"
+                               OnSelectVersion="SetCompilerVersion"
+                               CurrentScript="@selectedScript"
+                               CompilerVersions="compilerVersions" />
+
+                <AIAssitantPanel CurrentLanguage="@selectedScript.Language"
+                                 ActiveSection="@activeSection"
+                                 ToggleSection="ToggleSection"
+                                 CurrentCode="@selectedScript.Code"
+                                 @ref="assistantPanel" />
+
+                <NugetPanel ActiveSection="@activeSection"
+                            OnToggleSection="ToggleSection"
+                            SectionIdentifier="nuget"
+                            InstalledPackages="selectedScript.NugetPackges"
+                            InstallPackage="InstallPackage"
+                            RemovePackage="RemovePackage" />
+
+                <InputFilesPanel ActiveSection="@activeSection"
+                                 OnToggleSection="ToggleSection"
+                                 SectionIdentifier="inputsFiles" />
+
+                <FilesPanel ActiveSection="@activeSection"
+                            OnToggleSection="ToggleSection"
+                            SectionIdentifier="files"
+                            Files="@outputFiles" />
+            </div>
+        </aside>
+
+        <main class="editor-area">
+            <div id="editor" class="monaco-editor"></div>
+            <StreamingConsole @ref="ConsoleRef" OnInputSubmitted="HandleConsoleInput" IsRunning="IsRunning" />
+        </main>
+    </div>
+</div>
+
+<Modal Title="Share Script"
+       IsOpen="@showEmbedDialog"
+       Size="Modal.ModalSize.Large"
+       Position="Modal.ModalPosition.Top"
+       IsOpenChanged="@(value => showEmbedDialog = value)">
+    <EmbedCodeGenerator ScriptId="@selectedScript.Id" />
+</Modal>
+
+<Toast />
+<ConfirmDialog />
+
+@code {
+    #region Constants and Fields
+
+    private const string DEFAULT_CODE = @"
+using System;
+public class Program {
+    public static void Main() {
+        Console.WriteLine(""Hello, world!"");
+    }
+}";
+    private static class Tabs
+    {
+        public const string Output = "output";
+        public const string Errors = "errors";
+        public const string AI = "ai";
+    }
+
+    private CancellationTokenSource? _cts; 
+
+    private bool isLoggedIn;
+    private bool isPanelOpen = true;
+    private bool isScriptLibraryOpen;
+    private bool isInteractive = true;
+    private bool showEmbedDialog;
+    private bool isScriptStateChanged;
+    private string activeTab = Tabs.Output;
+    private string activeSection = "meta";
+    private ScriptItem selectedScript = new();
+    private List<string> outputFiles = new();
+    private List<string> compilerVersions = new() { ".net9.0", ".net8.0", ".net7.0", ".net6.0" };
+
+    private AIAssitantPanel? assistantPanel;
+    private Consoles.StreamingConsole? ConsoleRef;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<Pad>? dotNetRef;
+
+    public bool IsRunning { get; private set; }
+
+    #endregion
+
+    #region Lifecycle Methods
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CreateNewScript();
+        isLoggedIn = await IsUserLoggedInAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            dotNetRef = DotNetObjectReference.Create(this);
+            module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/monacoInterop.js");
+            await InitializeMonacoEditor();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module != null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Ignore if the JS runtime is disconnected
+            }
+        }
+    }
+
+    #endregion
+
+    #region Initialization Helpers
+
+    private async Task InitializeMonacoEditor()
+    {
+        if (module != null)
+        {
+            string appBaseUrl = NavigationManager.BaseUri.TrimEnd('/');
+            await module.InvokeAsync<string>("initializeMonaco", "editor", DEFAULT_CODE, dotNetRef, "vs-dark", appBaseUrl, "formatCodeButton");
+        }
+    }
+
+    [JSInvokable]
+    public Task OnEditorContentChanged(string content)
+    {
+        selectedScript.Code = content;
+        MarkScriptAsChanged();
+        return Task.CompletedTask;
+    }
+
+    private void MarkScriptAsChanged()
+    {
+        isScriptStateChanged = true;
+        StateHasChanged();
+    }
+
+    #endregion
+
+    #region Script Management
+
+    private async Task<bool> CreateNewScript()
+    {
+        if (isScriptStateChanged)
+        {
+            bool confirmed = await ConfirmDialogService.ShowConfirmAsync(
+                title: "Unsaved Changes",
+                message: "There are unsaved changes in your script?",
+                confirmButtonText: "Discard Changes",
+                cancelButtonText: "Go Back");
+
+            if (!confirmed)
+            {
+                return false;
+            }
+        }
+
+        var newScript = new ScriptItem
+            {
+                Title = "New Script",
+                Language = "C#",
+                CompilerVersion = ".net9.0",
+                Code = DEFAULT_CODE
+            };
+
+        await SelectScript(newScript);
+        activeSection = "meta";
+        StateHasChanged();
+        return true;
+    }
+
+    private async Task LoadLibraryScript(LibraryScript script)
+    {
+        var libraryScript = await LibraryClient.GetScriptByIdAsync(script.Id.ToString(), true);
+        bool scriptBelongsToUser = await ScriptBelongsToUser(libraryScript);
+
+        var scriptToLoad = new ScriptItem
+            {
+                Author = libraryScript.Author,
+                Code = libraryScript.Code,
+                CompilerVersion = libraryScript.CompilerVersion,
+                Description = libraryScript.Description,
+                IsPrivate = false,
+                Language = libraryScript.Language,
+                Id = libraryScript.Id.ToString(),
+                OwnerId = libraryScript.OwnerId,
+                NugetPackges = libraryScript.NugetPackages.Select(x => new NugetPackage { Id = x.Id, Version = x.Version }).ToList(),
+                Tags = libraryScript.Tags,
+                Title = libraryScript.Title,
+                ReadOnly = !scriptBelongsToUser
+            };
+
+        await SelectScript(scriptToLoad);
+        isScriptLibraryOpen = false;
+    }
+
+    private async Task SaveScript()
+    {
+        if (!isLoggedIn)
+        {
+            NotifyRequiresAuthenticatedUser();
+            return;
+        }
+
+        if (module == null)
+            return;
+
+        selectedScript.Code = await module.InvokeAsync<string>("getEditorContent", "editor");
+
+        var libraryScript = new LibraryScript
+            {
+                Author = selectedScript.Author,
+                Code = selectedScript.Code,
+                CompilerVersion = selectedScript.CompilerVersion,
+                Description = selectedScript.Description,
+                IsPrivate = selectedScript.IsPrivate,
+                Language = selectedScript.Language,
+                NugetPackages = selectedScript.NugetPackges.Select(x => new LibraryScriptPackage { Id = x.Id, Version = x.Version }).ToList(),
+                Tags = selectedScript.Tags,
+                Title = selectedScript.Title
+            };
+
+        if (string.IsNullOrEmpty(selectedScript.Id))
+        {
+            var createdScript = await LibraryClient.CreateScriptAsync(libraryScript);
+            selectedScript.Id = createdScript.Id.ToString();
+        }
+        else
+        {
+            libraryScript.Id = Guid.Parse(selectedScript.Id);
+            libraryScript.OwnerId = selectedScript.OwnerId;
+            await LibraryClient.UpdateScriptAsync(selectedScript.Id, libraryScript);
+        }
+
+        isScriptStateChanged = false;
+        ToastService.ShowToast("Script saved successfully", ToastType.Success, 3000);
+        StateHasChanged();
+    }
+
+    private async Task SelectScript(ScriptItem script)
+    {
+        selectedScript = script;
+        if (module != null)
+        {
+            await module.InvokeVoidAsync("setEditorContent", "editor", script.Code);
+            ToastService.ShowToast($"[{script.Title}] loaded", ToastType.Info, 2000);
+        }
+    }
+
+    private void OpenScriptLibrary() => isScriptLibraryOpen = true;
+
+    private void NotifyRequiresAuthenticatedUser() =>
+        ToastService.ShowToast("You need to be logged in to perform this action", ToastType.Error, 3000);
+
+    private void NavigateToAuth() => NavigationManager.NavigateTo("/auth");
+
+    private async Task Logout()
+    {
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", null);
+        isLoggedIn = false;
+    }
+
+    private Task HandleMetaChanged(ScriptItem script)
+    {
+        selectedScript = script;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleScriptSaved(ScriptItem script)
+    {
+        selectedScript = script;
+        await SaveScript();
+    }
+
+    private Task SetCompilerVersion(ScriptItem script)
+    {
+        selectedScript = script;
+        ToastService.ShowToast($"Compiler version changed to {script.CompilerVersion}", ToastType.Info, 2000);
+        return Task.CompletedTask;
+    }
+
+    private void ToggleSection(string section)
+    {
+        activeSection = activeSection == section ? string.Empty : section;
+        StateHasChanged();
+    }
+
+    private Task RemovePackage(NugetPackage package)
+    {
+        selectedScript.NugetPackges.Remove(package);
+        ToastService.ShowToast($"{package.Id} removed", ToastType.Success, 2000);
+        return Task.CompletedTask;
+    }
+
+    private Task InstallPackage(NugetPackage package)
+    {
+        selectedScript.NugetPackges.Add(package);
+        ToastService.ShowToast($"{package.Id} installed", ToastType.Success, 2000);
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
+    #region Code Execution
+
+    private async Task RunCodeMode()
+    {
+        if (IsRunning)
+        {
+            // Cancel the current run and perform cleanup.
+            _cts?.Cancel();
+            await CodeExecutionClientService.StopAsync();
+            IsRunning = false;
+            ToastService.ShowToast("Execution cancelled.", ToastType.Info, 3000);
+            StateHasChanged();
+            return;
+        }
+        else
+        {
+            // Create a new cancellation token for a new execution.
+            _cts = new CancellationTokenSource();
+
+            if (isInteractive)
+                await RunCode(_cts.Token);
+            else
+                await RunNonInteractiveCode(_cts.Token);
+        }
+    }
+
+    private async Task RunNonInteractiveCode(CancellationToken cancellationToken)
+    {
+        IsRunning = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new CodeExecutionRequest
+                {
+                    Code = selectedScript.Code,
+                    CompilerVersion = selectedScript.CompilerVersion,
+                    NugetPackages = selectedScript.NugetPackges
+                };
+
+            // Pass the cancellation token into the HTTP call.
+            var response = await Http.PostAsJsonAsync("api/codeexecution/execute", request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                await HandleExecutionError("Execution request failed.");
+                return;
+            }
+
+            var codeExecutionResponse = await response.Content.ReadFromJsonAsync<CodeExecutionResponse>(cancellationToken: cancellationToken);
+            if (codeExecutionResponse != null)
+            {
+                foreach (var outputItem in codeExecutionResponse.Outputs)
+                {
+                    if (outputItem.Type == OutputType.Error)
+                        ConsoleRef?.WriteError(outputItem.Content);
+                    else if (outputItem.Type != OutputType.RuntimeError)
+                        ConsoleRef?.Write(outputItem.CharContent);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            ConsoleRef?.WriteLine("[System] Execution cancelled by user.");
+        }
+        catch (Exception ex)
+        {
+            await HandleExecutionError($"Error: {ex.Message}");
+        }
+        finally
+        {
+            IsRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RunCode(CancellationToken cancellationToken)
+    {
+        IsRunning = true;
+        activeTab = Tabs.Output;
+        outputFiles.Clear();
+        StateHasChanged();
+
+        // Start the SignalR connection.
+        try
+        {
+            await CodeExecutionClientService.StartAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await HandleExecutionError("Failed to start execution: " + ex.Message);
+            IsRunning = false;
+            StateHasChanged();
+            return;
+        }
+
+        var executionTcs = new TaskCompletionSource<CodeExecutionResponse>();
+
+        // Define event handlers.
+        void ExecutionCompletedHandler(CodeExecutionResponse response)
+        {
+            executionTcs.TrySetResult(response);
+
+            if (response.Files.Any())
+            {
+                outputFiles.AddRange(response.Files);
+                activeTab = "files";
+            }
+
+            ConsoleRef?.WriteInfo($"[System] Compilation Time: {response.Metrics?.CompilationTime}", null);
+            ConsoleRef?.WriteInfo($"[System] Execution Time: {response.Metrics?.ExecutionTime}", null);
+            ConsoleRef?.WriteInfo($"[System] Memory Usage: {response.Metrics?.PeakMemoryUsage}", null);
+            ConsoleRef?.WriteLine("");
+        }
+
+        void OnOutputReceivedHandler(ExecutionOutput output)
+        {
+            if (output.Type == OutputType.ConsoleInput)
+            {
+                ConsoleRef?.ShowInputLine();
+            }
+            else if (output.Type is OutputType.CompilationError or OutputType.RuntimeError)
+            {
+                Action<Task> action = async _ => await assistantPanel!.FixCode(output.Content);
+                ConsoleRef?.WriteError(output.Content, action);
+            }
+            else
+            {
+                ConsoleRef?.Write(output.CharContent, null);
+            }
+        }
+
+        // Subscribe event handlers.
+        CodeExecutionClientService.OnExecutionCompleted += ExecutionCompletedHandler;
+        CodeExecutionClientService.OnOutputReceived += OnOutputReceivedHandler;
+
+        try
+        {
+            var requestStreaming = new StreamingCodeExecutionRequest
+                {
+                    Code = selectedScript.Code,
+                    CompilerVersion = selectedScript.CompilerVersion,
+                    NugetPackages = selectedScript.NugetPackges,
+                    Interactive = isInteractive,
+                    SessionId = CodeExecutionClientService.SessionId
+                };
+
+            // Execute the streaming code request.
+            var responseStreaming = await Http.PostAsJsonAsync("api/streamingcodeexecution/execute", requestStreaming, cancellationToken);
+            if (!responseStreaming.IsSuccessStatusCode)
+            {
+                await HandleExecutionError("Execution request failed.");
+                return;
+            }
+
+            // Wait for the execution to complete or be cancelled.
+            var codeExecutionResponse = await executionTcs.Task.WaitAsync(cancellationToken);
+            if (!codeExecutionResponse.Success)
+            {
+                await HandleExecutionError("Execution completed with errors.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            ConsoleRef?.WriteLine("[System] Execution cancelled by user.");
+        }
+        catch (Exception ex)
+        {
+            await HandleExecutionError("Error: " + ex.Message);
+        }
+        finally
+        {
+            // Clean up: unsubscribe event handlers and stop the SignalR connection.
+            CodeExecutionClientService.OnExecutionCompleted -= ExecutionCompletedHandler;
+            CodeExecutionClientService.OnOutputReceived -= OnOutputReceivedHandler;
+            ConsoleRef?.HideInputLine();
+            try
+            {
+                await CodeExecutionClientService.StopAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Optionally log the error.
+                ConsoleRef?.WriteLine($"[System] Error stopping connection: {ex.Message}");
+            }
+            IsRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    private Task HandleConsoleInput(string input)
+    {
+        return CodeExecutionClientService.SendInputAsync(input)
+            .ContinueWith(_ => ConsoleRef?.HideInputLine());
+    }
+
+    private Task HandleExecutionError(string message)
+    {
+        activeTab = Tabs.Errors;
+        var errorResult = new CodeExecutionResponse
+            {
+                Success = false,
+                Outputs = new List<ExecutionOutput>
+            {
+                new ExecutionOutput
+                {
+                    Type = OutputType.RuntimeError,
+                    Content = message
+                }
+            }
+            };
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
+    #region Authentication Helpers
+
+    private async Task<bool> IsUserLoggedInAsync() =>
+        await JSRuntime.InvokeAsync<bool>("authHelper.isLoggedIn");
+
+    private async Task<bool> ScriptBelongsToUser(LibraryScript script)
+    {
+        var username = await JSRuntime.InvokeAsync<string>("authHelper.getCurrentUsername");
+        return script.OwnerId == username?.ToLower();
+    }
+
+    #endregion
+
+    #region UI Event Handlers
+
+    private void ShowEmbedDialog()
+    {
+        if (!isLoggedIn)
+        {
+            NotifyRequiresAuthenticatedUser();
+            return;
+        }
+
+        if (string.IsNullOrEmpty(selectedScript.Id))
+        {
+            ToastService.ShowToast("Please select or save a script first", ToastType.Error, 3000);
+            return;
+        }
+
+        showEmbedDialog = true;
+    }
+
+    private Task ToggleInteractiveMode()
+    {
+        isInteractive = !isInteractive;
+        return Task.CompletedTask;
+    }
+
+    #endregion
+}

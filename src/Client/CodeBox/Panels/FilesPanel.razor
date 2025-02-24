@@ -1,0 +1,86 @@
+﻿@using System.Text.RegularExpressions
+
+<div class="panel-section @(ActiveSection == SectionIdentifier ? "active" : "")">
+    <div class="section-header" @onclick="() => OnToggleSection.InvokeAsync(SectionIdentifier)">
+        <div class="header-content">
+            <i class="fas fa-chevron-@(ActiveSection == SectionIdentifier ? "down" : "right")"></i>
+            <i class="fas fa-folder"></i>
+            <span>OUTPUT FILES</span>
+        </div>
+    </div>
+    @if (ActiveSection == SectionIdentifier)
+    {
+        <div class="section-content">
+            <div class="file-list">
+                @foreach (var file in Files)
+                {
+                    <div class="file-item">
+                        <div class="file-item__icon">
+                            <i class="fas fa-download"></i>
+                        </div>
+                        <a href="@GetDownloadUrl(file)"
+                           target="_blank"
+                           class="file-item__link"
+                           title="Download @GetFileNameFromPath(file)">
+                            @GetFileNameFromPath(file)
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string ActiveSection { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<string> OnToggleSection { get; set; }
+
+    [Parameter]
+    public string SectionIdentifier { get; set; } = "files";
+
+    [Parameter]
+    public List<string> Files { get; set; } = new();
+
+    /// <summary>
+    /// Returns the file name (with extension) from the full file path.
+    /// </summary>
+    public string GetFileNameFromPath(string filePath)
+    {
+        // Normalize the path: Replace both '\' and '/' with the OS-specific separator.
+        char osSeparator = Path.DirectorySeparatorChar;
+        string normalizedPath = filePath.Replace('\\', osSeparator).Replace('/', osSeparator);
+
+        // Now extract just the file name.
+        string fileNameWithGuid = Path.GetFileName(normalizedPath);
+
+        // Extract the extension.
+        string extension = Path.GetExtension(fileNameWithGuid);
+        // Get the file name without the extension.
+        string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileNameWithGuid);
+
+        // Find the underscore that separates the original file name from the GUID.
+        int underscoreIndex = fileNameWithoutExt.LastIndexOf('_');
+        if (underscoreIndex > 0)
+        {
+            // Get the original file name (portion before the underscore).
+            string originalFileName = fileNameWithoutExt.Substring(0, underscoreIndex);
+            return originalFileName + extension;
+        }
+
+        // If no underscore is found, return the full file name.
+        return fileNameWithGuid;
+    }
+
+
+    /// <summary>
+    /// Constructs the URL that points to your download endpoint with the file path query parameter.
+    /// </summary>
+    private string GetDownloadUrl(string filePath)
+    {
+        //  URL-encode the filePath
+        return $"/api/files/download?filePath={Uri.EscapeDataString(filePath)}";
+    }
+}

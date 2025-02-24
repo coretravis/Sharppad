@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>SharpPad</title>
+    <base href="/" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link href="SharpPad.Client.styles.css" rel="stylesheet" />
+    <link href="css/app.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+</head>
+
+<body style="margin:0;">
+    <div id="app">
+        <div class="splash-loader">
+            <div class="loader-logo">&lt;/&gt;</div>
+            <div class="loader-dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+            <div class="loader-text">Processing...</div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+
+        // move helpers to auth js module
+        window.authHelper = {
+            isLoggedIn: function () {
+                return localStorage.getItem("authToken") != null;
+            },
+            getCurrentUsername: function () {
+                return localStorage.getItem("username");
+            }
+        };
+    </script>
+</body>
+
+</html>

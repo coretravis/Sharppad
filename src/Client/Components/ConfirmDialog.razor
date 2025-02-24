@@ -1,0 +1,78 @@
+﻿@using SharpPad.Client.Services.Components
+@inject ConfirmDialogService ConfirmDialogService
+
+@if (IsVisible)
+{
+    <div class="cd-overlay" @onclick="OnOverlayClick">
+        <div class="cd-dialog" @onclick:stopPropagation>
+            <div class="cd-content">
+                <div class="cd-header">
+                    <h3 class="cd-title">@Title</h3>
+                </div>
+                <div class="cd-body">
+                    <p class="cd-message">@Message</p>
+                </div>
+                <div class="cd-footer">
+                    <button class="cd-btn cd-btn--secondary" @onclick="Cancel">
+                        <span class="cd-btn__text">@CancelButtonText</span>
+                    </button>
+                    <button class="cd-btn cd-btn--primary" @onclick="Confirm">
+                        <span class="cd-btn__text">@ConfirmButtonText</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string Title { get; set; } = "Confirm";
+    private string Message { get; set; } = "Are you sure you want to proceed?";
+    private string ConfirmButtonText { get; set; } = "Yes";
+    private string CancelButtonText { get; set; } = "No";
+    private bool IsVisible { get; set; }
+
+    private ConfirmDialogRequest? CurrentRequest { get; set; }
+
+    protected override void OnInitialized()
+    {
+        ConfirmDialogService.OnShow += ShowDialog;
+    }
+
+    private void ShowDialog(ConfirmDialogRequest request)
+    {
+        CurrentRequest = request;
+        Title = request.Title;
+        Message = request.Message;
+        ConfirmButtonText = request.ConfirmButtonText;
+        CancelButtonText = request.CancelButtonText;
+        IsVisible = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void Confirm()
+    {
+        CurrentRequest?.TaskCompletionSource.SetResult(true);
+        Close();
+    }
+
+    private void Cancel()
+    {
+        CurrentRequest?.TaskCompletionSource.SetResult(false);
+        Close();
+    }
+
+    private void Close()
+    {
+        IsVisible = false;
+        CurrentRequest = null;
+        StateHasChanged();
+    }
+
+    private void OnOverlayClick() => Cancel();
+
+    public void Dispose()
+    {
+        ConfirmDialogService.OnShow -= ShowDialog;
+    }
+}

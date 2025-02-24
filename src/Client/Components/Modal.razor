@@ -1,0 +1,126 @@
+﻿@using System.ComponentModel
+
+<div class="@GetModalClasses()" tabindex="-1" role="dialog">
+    <div class="ant-modal-wrapper @GetSizeClass() @GetPositionClass()">
+        <div class="ant-modal-container">
+            <div class="ant-modal-header">
+                @if (!string.IsNullOrEmpty(Icon))
+                {
+                    <i class="@Icon ant-modal-header-icon"></i>
+                }
+                <h5 class="ant-modal-header-title">@Title</h5>
+                <button type="button" class="ant-modal-close-btn" @onclick="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="ant-modal-body">
+                @ChildContent
+            </div>
+            @if (FooterContent != null)
+            {
+                <div class="ant-modal-footer">
+                    @FooterContent
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Modal";
+
+    [Parameter]
+    public string Icon { get; set; } = "";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? FooterContent { get; set; }
+
+    [Parameter]
+    public ModalSize Size { get; set; } = ModalSize.Medium;
+
+    [Parameter]
+    public bool IsOpen { get; set; }
+
+    [Parameter]
+    public ModalPosition Position { get; set; } = ModalPosition.Center;
+
+    [Parameter]
+    public EventCallback<bool> IsOpenChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnOpen { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    public enum ModalSize
+    {
+        Small,
+        Medium,
+        Large,
+        FullScreen
+    }
+
+    public enum ModalPosition
+    {
+        Center,
+        Top
+    }
+
+    private string GetModalClasses()
+    {
+        var classes = new List<string> { "ant-modal-overlay" };
+        if (IsOpen)
+        {
+            classes.Add("ant-modal-visible");
+        }
+        return string.Join(" ", classes);
+    }
+
+    private string GetSizeClass()
+    {
+        return Size switch
+        {
+            ModalSize.Small => "ant-modal-size-sm",
+            ModalSize.Medium => "ant-modal-size-md",
+            ModalSize.Large => "ant-modal-size-lg",
+            ModalSize.FullScreen => "ant-modal-size-full",
+            _ => "ant-modal-size-md"
+        };
+    }
+
+    private string GetPositionClass()
+    {
+        return Position switch
+        {
+            ModalPosition.Top => "ant-modal-position-top",
+            ModalPosition.Center => "ant-modal-position-center",
+            _ => "ant-modal-position-center"
+        };
+    }
+
+    private async Task Close()
+    {
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
+
+        if (IsOpenChanged.HasDelegate)
+        {
+            await IsOpenChanged.InvokeAsync(false);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsOpen && OnOpen.HasDelegate)
+        {
+            await OnOpen.InvokeAsync();
+        }
+    }
+}

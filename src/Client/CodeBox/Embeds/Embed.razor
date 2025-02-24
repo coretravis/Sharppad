@@ -1,0 +1,310 @@
+﻿@page "/embed/{id}"
+
+@using System.Net.Http.Json
+@using SharpPad.Client.Components
+@using SharpPad.Client.CodeBox.Consoles
+@using SharpPad.Client.Services.Components
+@using SharpPad.Client.Services.Library
+@using SharpPad.Client.Services.Streaming
+@using SharpPad.Shared.Models
+@using SharpPad.Shared.Models.Compiler
+
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject ILibraryScriptClient LibraryClient
+@inject CodeExecutionClientService CodeExecutionClientService
+@inject ToastService ToastService
+
+<div class="sharppad-container @(isRunning ? "running" : "")">
+    <header class="sharppad-header" style="padding:0; padding-left:5px; padding-right:5px">
+        <div class="header-left">
+            <div class="logo-section">
+                <i class="fas fa-cube"></i>
+                <span>Sharppad</span>
+            </div>
+            <div class="toolbar-divider"></div>
+            <a href="@GitHubUrl" class="toolbar-button" title="Github">
+                <i class="fab fa-github"></i>
+            </a>
+        </div>
+        <div class="header-right">
+            <div class="secondary-controls">
+            </div>
+            <button class="run-button @(isRunning ? "running" : "")" @onclick="RunCodeMode">
+                @if (isRunning)
+                {
+                    <i class="fas fa-refresh fa-spin"></i>
+                    <span>Stop</span>
+                }
+                else
+                {
+                    <i class="fas fa-play"></i>
+                    <span>Run</span>
+                }
+            </button>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <main class="editor-area">
+            <div id="editor" class="monaco-editor"></div>
+            <StreamingConsole @ref="ConsoleRef" OnInputSubmitted="HandleConsoleInput" />
+        </main>
+    </div>
+</div>
+
+
+@code {
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    private const string GitHubUrl = "https://github.com/coretravis/Sharppad"; // project github url
+    private const string DefaultEditorTheme = "vs-dark"; // the default editor theme
+
+    private bool isScriptStateChanged = false;
+    private ScriptItem selectedScript;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<Embed>? dotNetRef;
+    private Consoles.StreamingConsole ConsoleRef;
+    private bool isRunning { get;  set; }
+
+    private CancellationTokenSource? _cts;
+
+    protected override void OnInitialized()
+    {
+        selectedScript = new();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadScript();
+            dotNetRef = DotNetObjectReference.Create(this);
+            module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/monacoInterop.js");
+            await InitializeMonacoEditor();
+        }
+    }
+
+    private async Task InitializeMonacoEditor()
+    {
+        if (module is not null)
+        {
+            await module.InvokeAsync<string>("initializeEmbedMonaco", "editor", selectedScript.Code, dotNetRef, DefaultEditorTheme);
+        }
+    }
+
+    [JSInvokable]
+    public Task OnEditorContentChanged(string content)
+    {
+        // Set the code for the selected script to the new content
+        selectedScript.Code = content;
+        SetScriptStateChanged();
+        return Task.CompletedTask;
+    }
+
+    private void SetScriptStateChanged()
+    {
+        isScriptStateChanged = true;
+        StateHasChanged();
+    }
+
+    private async Task LoadScript()
+    {
+        try
+        {
+            var libraryScript = await LibraryClient.GetScriptByIdAsync(Id.ToString(), true);
+
+            var scriptToLoad = new ScriptItem
+                {
+                    Author = libraryScript.Author,
+                    Code = libraryScript.Code,
+                    CompilerVersion = libraryScript.CompilerVersion,
+                    Description = libraryScript.Description,
+                    IsPrivate = false,
+                    Language = libraryScript.Language,
+                    Id = libraryScript.Id.ToString(),
+                    OwnerId = libraryScript.OwnerId,
+                    NugetPackges = new List<SharpPad.Shared.Models.Nuget.NugetPackage>()
+                };
+
+            await SelectScript(scriptToLoad);
+        }
+        catch (Exception ex)
+        {
+            // notify user of issue
+            if (ex.Message.Contains("404"))
+            {
+                ConsoleRef?.WriteError("The script might have been deleted, moved, or restricted");
+            }else
+            {
+                ConsoleRef?.WriteError("There was a problem loading the script");
+
+            }
+        }
+       
+    }
+
+    private async Task RunCodeMode()
+    {
+        if (isRunning)
+        {
+            // Cancel the current run and perform cleanup.
+            _cts?.Cancel();
+            await CodeExecutionClientService.StopAsync();
+            isRunning = false;
+            ToastService.ShowToast("Execution cancelled.", ToastType.Info, 3000);
+            StateHasChanged();
+            return;
+        }
+        else
+        {
+            // Create a new cancellation token for a new execution.
+            _cts = new CancellationTokenSource();
+            await RunCode(_cts.Token);
+        }
+    }
+
+    private async Task RunCode(CancellationToken cancellationToken)
+    {
+        isRunning = true;
+        StateHasChanged();
+
+        // Start the SignalR connection.
+        try
+        {
+            await CodeExecutionClientService.StartAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await HandleExecutionError("Failed to start execution: " + ex.Message);
+            isRunning = false;
+            StateHasChanged();
+            return;
+        }
+
+        var executionTcs = new TaskCompletionSource<CodeExecutionResponse>();
+
+        // Define event handlers.
+        void ExecutionCompletedHandler(CodeExecutionResponse response)
+        {
+            executionTcs.TrySetResult(response);
+
+            ConsoleRef?.WriteInfo($"[System] Compilation Time: {response.Metrics?.CompilationTime}", null);
+            ConsoleRef?.WriteInfo($"[System] Execution Time: {response.Metrics?.ExecutionTime}", null);
+            ConsoleRef?.WriteInfo($"[System] Memory Usage: {response.Metrics?.PeakMemoryUsage}", null);
+        }
+
+        void OnOutputReceivedHandler(ExecutionOutput output)
+        {
+            if (output.Type == OutputType.ConsoleInput)
+            {
+                ConsoleRef?.ShowInputLine();
+            }
+            else if (output.Type is OutputType.CompilationError or OutputType.RuntimeError)
+            {
+                ConsoleRef?.WriteError(output.Content, null);
+            }
+            else
+            {
+                ConsoleRef?.Write(output.CharContent, null);
+            }
+        }
+
+        // Subscribe event handlers.
+        CodeExecutionClientService.OnExecutionCompleted += ExecutionCompletedHandler;
+        CodeExecutionClientService.OnOutputReceived += OnOutputReceivedHandler;
+
+        try
+        {
+            var requestStreaming = new StreamingCodeExecutionRequest
+                {
+                    Code = selectedScript.Code,
+                    CompilerVersion = selectedScript.CompilerVersion,
+                    NugetPackages = selectedScript.NugetPackges,
+                    Interactive = true,
+                    SessionId = CodeExecutionClientService.SessionId
+                };
+
+            // Execute the streaming code request.
+            var responseStreaming = await Http.PostAsJsonAsync("api/streamingcodeexecution/execute", requestStreaming, cancellationToken);
+            if (!responseStreaming.IsSuccessStatusCode)
+            {
+                await HandleExecutionError("Execution request failed.");
+                return;
+            }
+
+            // Wait for the execution to complete or be cancelled.
+            var codeExecutionResponse = await executionTcs.Task.WaitAsync(cancellationToken);
+            if (!codeExecutionResponse.Success)
+            {
+                await HandleExecutionError("Execution completed with errors.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            ConsoleRef?.WriteLine("[System] Execution cancelled by user.");
+        }
+        catch (Exception ex)
+        {
+            await HandleExecutionError("Error: " + ex.Message);
+        }
+        finally
+        {
+            // Clean up: unsubscribe event handlers and stop the SignalR connection.
+            CodeExecutionClientService.OnExecutionCompleted -= ExecutionCompletedHandler;
+            CodeExecutionClientService.OnOutputReceived -= OnOutputReceivedHandler;
+            ConsoleRef?.HideInputLine();
+            try
+            {
+                await CodeExecutionClientService.StopAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Optionally log the error.
+                ConsoleRef?.WriteLine($"[System] Error stopping connection: {ex.Message}");
+            }
+            isRunning = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleConsoleInput(string input)
+    {
+        // Handle input based on what we're expecting
+        await CodeExecutionClientService.SendInputAsync(input);
+        ConsoleRef.HideInputLine();
+    }
+
+    private Task HandleExecutionError(string message)
+    {
+       // todo: add error to console ?
+       return Task.CompletedTask;
+    }
+
+    private async Task SelectScript(ScriptItem script)
+    {
+        selectedScript = script;
+        if (module is not null)
+        {
+            await module.InvokeVoidAsync("setEditorContent", "editor", script.Code);
+        }
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Ignore if the JS runtime is disconnected
+            }
+        }
+    }
+}

@@ -1,0 +1,65 @@
+﻿@page "/github-callback"
+@using Microsoft.AspNetCore.WebUtilities
+@using SharpPad.Client.Services.Components
+@inject NavigationManager NavigationManager
+@inject HttpClient HttpClient
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@inject ToastService ToastService
+
+
+<div class="splash-loader">
+    <div class="loader-logo">&lt;/&gt;</div>
+    <div class="loader-dots">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+    </div>
+    <div class="loader-text">Processing...</div>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Parse the current URL query string
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+
+        if (!query.TryGetValue("code", out var code))
+        {
+            // Handle error: code missing
+            return;
+        }
+
+        // Call  endpoint to exchange the code for a JWT.
+        var callbackUrl = $"api/auth/github-callback?code={code}";
+        try
+        {
+            var response = await HttpClient.GetFromJsonAsync<TokenResponse>(callbackUrl);
+            if (response != null && !string.IsNullOrEmpty(response.Token))
+            {
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "authToken", response.Token);
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "username", response.Username);
+                NavigationManager.NavigateTo("/");
+                NavigationManager.NavigateTo("/");
+            }
+            else
+            {
+                // Handle error: token missing from response.
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle exceptions (e.g. network issues, API errors).
+            ToastService.ShowToast("Failed to exchange code for token", ToastType.Error, 4000);
+            Console.Error.WriteLine(ex.Message);
+        }
+    }
+
+    // Simple class to capture the API response
+    public class TokenResponse
+    {
+        public string Token { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+    }
+}

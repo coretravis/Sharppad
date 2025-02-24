@@ -1,0 +1,102 @@
+﻿@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+
+<div class="generator-container">
+    <!-- Settings Section -->
+    <div class="settings">
+        <div class="row">
+            <div class="form-group">
+                <label for="heightInput">Height (px)</label>
+                <input id="heightInput" type="number" @bind="height" min="300" max="2000" step="50" />
+            </div>
+            <div class="form-group">
+                <label for="themeSelect">Theme</label>
+                <select id="themeSelect" @bind="theme">
+                    <option value="vs-dark">Dark</option>
+                    <option value="vs-light">Light</option>
+                </select>
+            </div>
+        </div>
+        <div class="row">
+            <div class="checkbox-group">
+                <input id="readOnlyInput" type="checkbox" @bind="readOnly" />
+                <label for="readOnlyInput">Read-only</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Output Section -->
+    <div class="output">
+        <!-- Embed Code Section -->
+        <div class="code-section">
+            <h4>Embed Code</h4>
+            <div class="code-container">
+                <pre>@GenerateEmbedCode()</pre>
+                <button class="copy-btn" @onclick="CopyEmbedCode">Copy</button>
+                @if (copySuccess)
+                {
+                    <span class="copy-feedback">Copied!</span>
+                }
+            </div>
+        </div>
+
+        <!-- Script Link Section -->
+        <div class="script-section">
+            <h4>Script Link</h4>
+            <div class="input-group">
+                <input type="text" class="script-input" readonly value="@GenerateScriptLink()" />
+                <button class="copy-btn" @onclick="CopyScriptLink">Copy</button>
+                @if (copyScriptSuccess)
+                {
+                    <span class="copy-feedback">Copied!</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    [Parameter]
+    public string ScriptId { get; set; }
+
+    private int height = 500;
+    private bool readOnly = true;
+    private string theme = "vs-dark";
+    private bool copySuccess = false;
+    private bool copyScriptSuccess = false;
+
+    private string GetBaseUrl() => NavigationManager.BaseUri.TrimEnd('/');
+
+    private string GenerateEmbedCode()
+    {
+        var baseUrl = GetBaseUrl();
+        var embedUrl = $"{baseUrl}/embed/{ScriptId}";
+        return $@"<iframe src=""{embedUrl}?height={height}&readonly={readOnly}&theme={theme}""
+      style=""width: 100%; height: {height}px; border: 0;""
+      title=""SharpPad Embed""
+      allow=""clipboard-read; clipboard-write""></iframe>";
+    }
+
+    private string GenerateScriptLink() => $"{GetBaseUrl()}/script/{ScriptId}";
+
+    private async Task CopyEmbedCode()
+    {
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", GenerateEmbedCode());
+        copySuccess = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        copySuccess = false;
+        StateHasChanged();
+    }
+
+    private async Task CopyScriptLink()
+    {
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", GenerateScriptLink());
+        copyScriptSuccess = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        copyScriptSuccess = false;
+        StateHasChanged();
+    }
+}

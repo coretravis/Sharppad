@@ -1,0 +1,30 @@
+﻿.meta-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+    .form-group label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .form-group input,
+    .form-group textarea {
+        padding: 0.5rem;
+        background-color: var(--panel-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-primary);
+        resize: vertical;
+    }
+
+    .form-group textarea {
+        min-height: 80px;
+    }

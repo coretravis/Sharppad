@@ -1,0 +1,32 @@
+﻿.file-list {
+    padding: 4px 0;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    transition: background-color 0.2s ease;
+}
+
+    .file-item:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+.file-item__icon {
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+    color: #6b7280;
+}
+
+.file-item__link {
+    color: #e0e0e0;
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: color 0.2s ease;
+}
+
+    .file-item__link:hover {
+        color: #60a5fa;
+    }

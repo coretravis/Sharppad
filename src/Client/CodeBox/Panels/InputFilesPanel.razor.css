@@ -1,0 +1,83 @@
+﻿.upload-section {
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    border: 1px dashed #6b7280;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.upload-details {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.upload-button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    background-color: #60a5fa;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+    .upload-button:disabled {
+        background-color: #94a3b8;
+        cursor: not-allowed;
+    }
+
+.file-list {
+    padding: 4px 0;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    transition: background-color 0.2s ease;
+    position: relative;
+}
+
+    .file-item:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+.file-item__left {
+    display: flex;
+    align-items: center;
+}
+
+.file-item__icon {
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+    color: #6b7280;
+}
+
+.file-item__link {
+    color: #e0e0e0;
+    text-decoration: none;
+    font-size: 0.875rem;
+    transition: color 0.2s ease;
+}
+
+    .file-item__link:hover {
+        color: #60a5fa;
+    }
+
+/* Copy Path action: hidden by default and displayed on hover */
+.copy-path {
+    display: none;
+    font-size: 0.75rem;
+    color: #9ca3af;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+.file-item:hover .copy-path {
+    display: inline;
+}

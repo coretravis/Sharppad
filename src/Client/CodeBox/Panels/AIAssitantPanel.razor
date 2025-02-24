@@ -1,0 +1,316 @@
+﻿@using Markdig
+@using Microsoft.AspNetCore.Components.Web
+@using SharpPad.Client.Services.AI
+@inject IJSRuntime JSRuntime
+@inject ICodeAssistantApiClient ApiClient
+@implements IAsyncDisposable
+
+<div class="panel-section @(ActiveSection == AIActions.AI ? "active" : "")">
+    <div class="section-header" @onclick="() => ToggleSection.Invoke(AIActions.AI)">
+        <div class="header-content">
+            <i class="fas fa-chevron-@(ActiveSection == AIActions.AI ? "down" : "right")"></i>
+            <i class="fas fa-robot"></i>
+            <span>AI ASSISTANT</span>
+        </div>
+    </div>
+    @if (ActiveSection == AIActions.AI)
+    {
+        <div class="ai-panel__content">
+            <!-- Quick Actions -->
+            <div class="ai-panel__quick-actions">
+                <button title="AI Chat" class="ai-panel__quick-action" @onclick="ToggleChatModal">
+                    <i class="fas fa-paper-plane"></i>
+                    <span>Chat</span>
+                </button>
+                <button class="ai-panel__quick-action" @onclick="() => ExecuteAiAction(AIActions.Explain)">
+                    <i class="fas fa-comment-alt"></i>
+                    <span>Explain Code</span>
+                </button>
+                <button class="ai-panel__quick-action" @onclick="() => ExecuteAiAction(AIActions.Optimize)">
+                    <i class="fas fa-cog"></i>
+                    <span>Optimize Code</span>
+                </button>
+                <button class="ai-panel__quick-action" @onclick="() => ExecuteAiAction(AIActions.Documentation)">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Generate Docs</span>
+                </button>
+            </div>
+
+            <!-- AI Settings -->
+            <div class="ai-panel__settings">
+                <h4 class="ai-panel__settings-title">Assistant Settings</h4>
+                <div class="ai-panel__settings-group">
+                    <div class="ai-panel__model-selection">
+                        <span>AI Model:</span>
+                        <select class="ai-panel__model-select" @bind="aiSettings.Model">
+                            <option value="gpt-4">GPT-4 (Most Capable)</option>
+                            <option value="gpt-3.5">Llama 3.2</option>
+                            <option value="gpt-3.5">Qwen2.5</option>
+                            <option value="codex">Codex (Code Optimized)</option>
+                            <option value="codex">Deepseek Coder</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (isChatModalVisible)
+{
+    <div class="ai-panel__modal @(isChatModalVisible ? "visible" : "hidden")">
+        <div class="modal-backdrop" @onclick="ToggleChatModal"></div>
+        <div class="modal-container @(isExpanded ? "expanded" : "")">
+            <!-- Header -->
+            <div class="modal-header">
+                <div class="header-title">
+                    <i class="fas fa-robot text-blue-400"></i>
+                    <span>AI Assistant</span>
+                </div>
+                <div class="header-actions">
+                    <button class="header-action" title="Clear chat" @onclick="ClearChat">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button class="header-action" title="@(isExpanded ? "Minimize" : "Expand")" @onclick="ToggleExpand">
+                        <i class="fas fa-@(isExpanded ? "compress" : "expand")"></i>
+                    </button>
+                    <button class="header-action" title="Close" @onclick="ToggleChatModal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div class="messages-container" @ref="chatMessagesRef">
+                @foreach (var message in chatMessages)
+                {
+                    <div class="message-wrapper @(message.IsUser ? "user" : "assistant")">
+                        <div class="message-content">
+                            <div class="message-text">
+                                @((MarkupString)Markdown.ToHtml(message.Content))
+                            </div>
+                            <div class="message-footer">
+                                <span class="message-time">@message.Timestamp.ToString("HH:mm")</span>
+                                <button class="message-copy" @onclick="() => CopyMessage(message.Content)">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+                @if (isThinking)
+                {
+                    <div class="thinking-indicator">
+                        <div class="thinking-dots">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                        <span>AI is thinking...</span>
+                    </div>
+                }
+                <div @ref="messagesEndRef"></div>
+            </div>
+
+            <!-- Input -->
+            <div class="input-container">
+                <textarea class="message-input"
+                          placeholder="Type your message... (Shift + Enter for new line)"
+                          @bind="currentMessage"
+                          @bind:event="oninput"
+                          @onkeydown="HandleKeyPress"></textarea>
+                <button class="send-button" @onclick="SendMessage" disabled="@string.IsNullOrWhiteSpace(currentMessage)">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+
+        @if (showCopyAlert)
+        {
+            <div class="copy-alert">
+                Message copied to clipboard
+            </div>
+        }
+    </div>
+}
+
+@code {
+    // Parameters
+    [Parameter] public string ActiveSection { get; set; } = "";
+    [Parameter] public Action<string> ToggleSection { get; set; }
+    [Parameter] public string CurrentCode { get; set; } = "";
+    [Parameter] public string CurrentLanguage { get; set; } = "";
+
+    // Fields
+    private string currentMessage = "";
+    private bool isThinking = false;
+    private bool isChatModalVisible = false;
+    private bool isExpanded = false;
+    private bool showCopyAlert = false;
+    private ElementReference chatMessagesRef;
+    private ElementReference messagesEndRef;
+    private List<ChatMessage> chatMessages = new();
+    private IJSObjectReference? module;
+    private AiSettings aiSettings = new();
+
+    // Helper classes
+    private class ChatMessage
+    {
+        public string Content { get; set; } = "";
+        public bool IsUser { get; set; }
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    private class AiSettings
+    {
+        public string Model { get; set; } = "gpt-4";
+    }
+
+    public static class AIActions
+    {
+        public const string Explain = "explain";
+        public const string Documentation = "documentation";
+        public const string Optimize = "optimize";
+        public const string Test = "test";
+        public const string Fix = "fix";
+        public const string Question = "question";
+        public const string AI  = "ai";
+    }
+
+    // Lifecycle Methods
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/aiAssistantPanel.js");
+            await ScrollToBottom();
+        }
+    }
+
+    // Chat Methods
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(currentMessage))
+            return;
+
+        // Add the user's message
+        chatMessages.Add(new ChatMessage { Content = currentMessage, IsUser = true });
+        var userQuery = currentMessage;
+        currentMessage = "";
+
+        isThinking = true;
+        await ScrollToBottom();
+        StateHasChanged();
+
+        // Get the AI answer and add it to the chat
+        var answer = await ApiClient.AnswerQuestionAsync(CurrentCode, CurrentLanguage, userQuery);
+        isThinking = false;
+        chatMessages.Add(new ChatMessage { Content = answer, IsUser = false });
+        await ScrollToBottom();
+        StateHasChanged();
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task CopyMessage(string content)
+    {
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", content);
+        showCopyAlert = true;
+        await Task.Delay(1000);
+        showCopyAlert = false;
+        StateHasChanged();
+    }
+
+    private void ClearChat()
+    {
+        chatMessages.Clear();
+        StateHasChanged();
+    }
+
+    private void ToggleExpand()
+    {
+        isExpanded = !isExpanded;
+        StateHasChanged();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        if (module is not null)
+        {
+            await module.InvokeVoidAsync("scrollToBottom", chatMessagesRef);
+        }
+    }
+
+    private void ToggleChatModal()
+    {
+        isChatModalVisible = !isChatModalVisible;
+        StateHasChanged();
+    }
+
+    private async Task CopyChat()
+    {
+        var chatText = string.Join("\n", chatMessages.Select(m =>
+            $"{(m.IsUser ? "User" : "Assistant")} ({m.Timestamp:HH:mm}): {m.Content}"));
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", chatText);
+        showCopyAlert = true;
+        await Task.Delay(1000); // oh js interop, why you do this to me
+        showCopyAlert = false;
+        StateHasChanged();
+    }
+
+    // AI Action Methods
+    private async Task ExecuteAiAction(string action, string errorMessage = "")
+    {
+        ToggleChatModal();
+        // Capitalize the action name for display
+        chatMessages.Add(new ChatMessage
+            {
+                Content = char.ToUpper(action[0]) + action.Substring(1),
+                IsUser = true
+            });
+
+        isThinking = true;
+        await ScrollToBottom();
+
+        string result = action switch
+        {
+            AIActions.Explain => await ApiClient.ExplainCodeAsync(CurrentCode, CurrentLanguage),
+            AIActions.Fix => await ApiClient.FixCodeAsync(CurrentCode, errorMessage, CurrentLanguage),
+            AIActions.Optimize => await ApiClient.OptimizeCodeAsync(CurrentCode, CurrentLanguage),
+            AIActions.Documentation => await ApiClient.AddDocumentationAsync(CurrentCode, CurrentLanguage),
+            _ => "Unknown action."
+        };
+
+        isThinking = false;
+        chatMessages.Add(new ChatMessage { Content = result, IsUser = false });
+        await ScrollToBottom();
+        StateHasChanged();
+    }
+
+    public async Task ExplainCode() => await ExecuteAiAction(AIActions.Explain);
+    public async Task FixCode(string errorMessage) => await ExecuteAiAction(AIActions.Fix, errorMessage);
+    public async Task OptimizeCode() => await ExecuteAiAction(AIActions.Optimize);
+    public async Task DocumentCode() => await ExecuteAiAction(AIActions.Documentation);
+
+    // IAsyncDisposable Implementation
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Handle disconnection if necessary
+            }
+        }
+    }
+}

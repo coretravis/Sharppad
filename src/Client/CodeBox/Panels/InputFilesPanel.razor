@@ -1,0 +1,187 @@
+﻿@using System.Text.RegularExpressions
+@using Microsoft.AspNetCore.Components.Forms
+@using SharpPad.Client.Services.Components
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject ToastService ToastService
+
+<div class="panel-section @(ActiveSection == SectionIdentifier ? "active" : "")">
+    <div class="section-header" @onclick="() => OnToggleSection.InvokeAsync(SectionIdentifier)">
+        <div class="header-content">
+            <i class="fas fa-chevron-@(ActiveSection == SectionIdentifier ? "down" : "right")"></i>
+            <i class="fas fa-folder"></i>
+            <span>INPUT FILES</span>
+        </div>
+    </div>
+    @if (ActiveSection == SectionIdentifier)
+    {
+        <div class="section-content">
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <InputFile OnChange="HandleFileSelected" />
+                @if (selectedFile != null)
+                {
+                    <div class="upload-details">
+                        <span>@selectedFile.Name (@(selectedFile.Size / 1024) KB)</span>
+                        <button class="upload-button" @onclick="UploadFile" disabled="@uploading">
+                            Upload
+                        </button>
+                    </div>
+                }
+                @if (uploading)
+                {
+                    <span>Uploading...</span>
+                }
+                @if (!string.IsNullOrEmpty(uploadError))
+                {
+                    <span style="color: #f87171;">@uploadError</span>
+                }
+            </div>
+            <!-- File List -->
+            <div class="file-list">
+                @foreach (var file in Files)
+                {
+                    <div class="file-item">
+                        <div class="file-item__left">
+                            <div class="file-item__icon">
+                                <i class="fas fa-download"></i>
+                            </div>
+                            <a href="@GetDownloadUrl(file)"
+                               target="_blank"
+                               class="file-item__link"
+                               title="Download @GetFileNameFromPath(file)">
+                                @GetFileNameFromPath(file)
+                            </a>
+                        </div>
+                        <span class="copy-path" @onclick="@(() => CopyPath(file))">Copy Path</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string ActiveSection { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<string> OnToggleSection { get; set; }
+
+    [Parameter]
+    public string SectionIdentifier { get; set; } = "files";
+
+    [Parameter]
+    public List<string> Files { get; set; } = new();
+
+    private IBrowserFile? selectedFile;
+    private bool uploading = false;
+    private string uploadError = string.Empty;
+
+    /// <summary>
+    /// Returns the file name (with extension) from the full file path.
+    /// This implementation strips out the GUID if it is appended to the file name.
+    /// </summary>
+    public string GetFileNameFromPath(string filePath)
+    {
+        char osSeparator = Path.DirectorySeparatorChar;
+        string normalizedPath = filePath.Replace('\\', osSeparator).Replace('/', osSeparator);
+        string fileNameWithGuid = Path.GetFileName(normalizedPath);
+        string extension = Path.GetExtension(fileNameWithGuid);
+        string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileNameWithGuid);
+
+        int underscoreIndex = fileNameWithoutExt.LastIndexOf('_');
+        if (underscoreIndex > 0)
+        {
+            string originalFileName = fileNameWithoutExt.Substring(0, underscoreIndex);
+            return originalFileName + extension;
+        }
+
+        return fileNameWithGuid;
+    }
+
+    /// <summary>
+    /// Constructs the URL for the download endpoint with a URL-encoded file path.
+    /// </summary>
+    private string GetDownloadUrl(string filePath)
+    {
+        return $"/api/files/download?filePath={Uri.EscapeDataString(filePath)}";
+    }
+
+    /// <summary>
+    /// When a file is selected, store it for later uploading.
+    /// </summary>
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        if (e.FileCount > 0)
+        {
+            selectedFile = e.File;
+        }
+    }
+
+    /// <summary>
+    /// Uploads the selected file to the API.
+    /// </summary>
+    private async Task UploadFile()
+    {
+        if (selectedFile == null)
+        {
+            return;
+        }
+
+        uploading = true;
+        uploadError = string.Empty;
+        try
+        {
+            // Read the file stream; adjust maxAllowedSize as needed.
+            using var stream = selectedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024); // e.g., 10 MB
+            using var content = new MultipartFormDataContent();
+            var streamContent = new StreamContent(stream);
+            streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(selectedFile.ContentType);
+            content.Add(streamContent, "file", selectedFile.Name);
+
+            var response = await Http.PostAsync("/api/files/upload", content);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<UploadResult>();
+                if (result != null && !string.IsNullOrEmpty(result.filePath))
+                {
+                    Files.Add(result.filePath);
+                    // Clear the selected file once successfully uploaded.
+                    selectedFile = null;
+
+                    // Notify the user of the successful upload
+                    ToastService.ShowToast("File added to enviroment successfully", ToastType.Success);
+                }
+            }
+            else
+            {
+                uploadError = "Upload failed: " + response.ReasonPhrase;
+                ToastService.ShowToast("Failed to add file to enviroment", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            uploadError = "Error: " + ex.Message;
+        }
+        finally
+        {
+            uploading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Copies the file path to the clipboard using JavaScript interop.
+    /// </summary>
+    private async Task CopyPath(string filePath)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", filePath);
+        ToastService.ShowToast("File path copied!", ToastType.Info);
+    }
+
+    public class UploadResult
+    {
+        public string filePath { get; set; } = string.Empty;
+    }
+}

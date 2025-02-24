@@ -1,0 +1,741 @@
+/* Modern Variables */
+:root {
+    --primary-color: #0078d4;
+    --primary-hover: #006cbd;
+    --background-dark: #1e1e1e;
+    --background-lighter: #252526;
+    --border-color: #3f3f3f;
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --success-color: #28a745;
+    --error-color: #dc3545;
+    --transition-speed: 0.3s;
+    --panel-bg: #252526;
+    --panel-header: #383838;
+    --active-bg: #37373d;
+    --hover-bg: #2a2d2e;
+    --border-color: #3f3f3f;
+    --text-primary: #cccccc;
+    --text-secondary: #999999;
+    --accent-color: #0078d4;
+
+
+        --background: #121212;
+    --surface: #1e1e1e;
+    --surface-hover: #292929;
+    --primary: #ff6f61;
+    --primary-hover: #ff8a75;
+    --border: #333333;
+    --text: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --error: #ff4444;
+    --success: #44ff44;
+}
+
+body {
+    background-color: var(--background-dark);
+}
+
+/** Splash Screen */
+/* Center the splash loader within its parent container */
+.splash-loader {
+    position: absolute; /* Position relative to the nearest positioned ancestor */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+/* Loader logo styling (a simple code icon) */
+.loader-logo {
+    font-size: 48px;
+    color: var(--text-primary); /* Accent blue */
+    margin-bottom: 20px;
+    /* A gentle pulse to add life to the logo */
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+}
+
+/* Bouncing dots container */
+.loader-dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* Each dot */
+.dot {
+    width: 12px;
+    height: 12px;
+    margin: 0 5px;
+    background-color: #007ACC;
+    border-radius: 50%;
+    animation: bounce 1s infinite;
+}
+
+    /* Stagger the bounce animation for each dot */
+    .dot:nth-child(1) {
+        animation-delay: 0s;
+    }
+
+    .dot:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .dot:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+/* Typewriter effect for the loading text */
+.loader-text {
+    font-size: 16px;
+    font-family: 'Fira Code', monospace;
+    color: var(--text-secondary); /* Dark gray for good contrast on white */
+    white-space: nowrap;
+    overflow: hidden; /* Hide the text until animated */
+    border-right: 2px solid #007ACC; /* Caret effect */
+    width: 0; /* Start hidden */
+    margin: 0 auto;
+    /* Two animations: typing and caret blinking */
+    animation: typing 2s steps(17) forwards, blink-caret 0.75s step-end infinite;
+}
+
+@keyframes typing {
+    from {
+        width: 0;
+    }
+
+    to {
+        width: 17ch;
+    }
+    /* Adjust based on the text length */
+}
+
+@keyframes blink-caret {
+    from, to {
+        border-color: transparent;
+    }
+
+    50% {
+        border-color: #007ACC;
+    }
+}
+
+/* Container and Layout */
+.sharppad-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: var(--background-dark);
+    color: var(--text-primary);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+.header-logo {
+    height: 20px;
+}
+/* Header Styling */
+.sharppad-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background-color: var(--background-lighter);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.header-left, .header-right {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+/* Select Styling */
+.language-select, .framework-select {
+    background-color: var(--background-dark);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+/* Button Styling */
+.action-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    background-color: var(--primary-color);
+    color: white;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+    .action-button:hover:not(:disabled) {
+        background-color: var(--primary-hover);
+    }
+
+    .action-button.running {
+        background-color: var(--success-color);
+        pointer-events: none;
+    }
+
+/* Main Content Layout */
+.main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Script Panel Styling */
+.script-panel {
+    width: 250px;
+    background-color: var(--background-lighter);
+    border-right: 1px solid var(--border-color);
+    transition: transform var(--transition-speed);
+}
+
+    .script-panel:not(.open) {
+        transform: translateX(-250px);
+    }
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.toggle-panel {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+}
+
+/* Search Styling */
+.search-container {
+    position: relative;
+    padding: 1rem;
+}
+
+.search-input {
+    width: 90%;
+    padding: 0.5rem 0.5rem 0.5rem 2rem;
+    background-color: var(--background-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+}
+
+.search-icon {
+    position: absolute;
+    left: 1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+}
+
+
+
+/* Editor Area Styling */
+.editor-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.monaco-editor {
+    flex: 1;
+    min-height: 200px;
+}
+
+/* Output Panel Styling */
+/*.output-container {
+    height: 200px;
+    background-color: var(--background-lighter);
+    border-top: 1px solid var(--border-color);
+}
+
+.output-tabs {
+    display: flex;
+    background-color: var(--background-dark);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tab-button {
+    padding: 0.5rem 1rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+    .tab-button.active {
+        color: var(--text-primary);
+        border-bottom: 2px solid var(--primary-color);
+    }
+
+.output-content {
+    height: calc(100% - 35px);
+    overflow: auto;
+    padding: 1rem;
+}
+
+.empty-output {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-secondary);
+    gap: 1rem;
+}*/
+
+/* Loading States and Animations */
+.spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #ffffff;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Logo Section */
+.logo-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--primary-color);
+    padding-right: 1rem;
+}
+
+    .logo-section i {
+        font-size: 1.5rem;
+    }
+
+/* Toolbar Styling */
+.toolbar-divider {
+    width: 1px;
+    height: 24px;
+    background-color: var(--border-color);
+    margin: 0 0.5rem;
+}
+
+.primary-controls, .secondary-controls {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+.toolbar-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    text-decoration:none;
+}
+
+    .toolbar-button:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--text-primary);
+    }
+
+    .toolbar-button i {
+        font-size: 1rem;
+        width: 1.2rem;
+        text-align: center;
+    }
+
+.toolbar-button-action {
+    color: #e24141;
+    animation: pulsate 4s infinite;
+}
+
+
+@keyframes pulsate {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+
+
+
+/* Enhanced Run Button */
+.run-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all var(--transition-speed);
+}
+
+    .run-button:hover:not(:disabled) {
+        background-color: var(--primary-hover);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .run-button:active:not(:disabled) {
+        transform: translateY(0);
+        box-shadow: none;
+    }
+
+    .run-button.running {
+        background-color: var(--success-color);
+    }
+
+.interactive-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem .5rem;
+    background-color: var(--background);
+    color: var(--text-primary);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all var(--transition-speed);
+}
+
+    .interactive-button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .interactive-button:active:not(:disabled) {
+        transform: translateY(0);
+        box-shadow: none;
+    }
+
+    .interactive-button.interactive {
+        background-color: var(--primary-color);
+    }
+
+/* Language Controls */
+.language-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.language-select, .framework-select {
+    padding: 0.4rem 0.75rem;
+    background-color: var(--background-dark);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all var(--transition-speed);
+}
+
+    .language-select:hover, .framework-select:hover {
+        border-color: var(--primary-color);
+    }
+
+/* Responsive Adjustments */
+@media (max-width: 1024px) {
+    .toolbar-button span {
+        display: none;
+    }
+
+    .primary-controls {
+        gap: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .header-left {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .language-controls {
+        width: 100%;
+        order: 3;
+    }
+
+    .language-select, .framework-select {
+        flex: 1;
+    }
+
+    .toolbar-divider {
+        display: none;
+    }
+}
+
+/* Overlay Background */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Modal Box */
+.modal-content {
+    background: #ffffff;
+    padding: 20px;
+    width: 500px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    position: relative;
+    animation: slideIn 0.3s ease-in-out;
+}
+
+/* Close Button */
+.close-button {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #888;
+    transition: color 0.2s ease-in-out;
+}
+
+    .close-button:hover {
+        color: #333;
+    }
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/*side panels */
+/* Side Panel Base Styles */
+.side-panel {
+    width: 300px;
+    background-color: var(--panel-bg);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+    height: 100%;
+    overflow-y: auto;
+}
+
+    .side-panel:not(.open) {
+        transform: translateX(-300px);
+        width:0;
+    }
+/* Scrollbars */
+    .side-panel::-webkit-scrollbar {
+        width: 5px;
+    }
+
+    .side-panel::-webkit-scrollbar-track {
+        background: #1a1a1a;
+        border-radius: 0px;
+    }
+
+    .side-panel::-webkit-scrollbar-thumb {
+        background: #404040;
+        border-radius: 0px;
+    }
+
+        .side-panel::-webkit-scrollbar-thumb:hover {
+            background: #505050;
+        }
+
+/* Panel Sections */
+.panel-sections {
+    display: flex;
+    font-size: .8em;
+    flex-direction: column;
+}
+
+.panel-section {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.section-header {
+    padding: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--panel-header);
+}
+
+    .section-header:hover {
+        background-color: var(--hover-bg);
+    }
+
+.header-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-primary);
+}
+
+    .header-content i {
+        width: 16px;
+        text-align: center;
+    }
+
+/* Section Content */
+.section-content {
+    padding: 0.75rem;
+}
+
+/* Files Section */
+.action-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    width: 100%;
+    color: var(--text-primary);
+    background: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+    .action-button:hover {
+        background-color: var(--hover-bg);
+    }
+
+.file-list {
+    margin-top: 0.5rem;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+    .file-item:hover {
+        background-color: var(--hover-bg);
+    }
+
+
+
+/* Compiler Version Section */
+.compiler-select {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+    .compiler-select option {
+        background-color: var(--panel-bg);
+        color: var(--text-primary);
+    }
+
+/* Active States */
+.panel-section.active .section-header {
+    background-color: var(--active-bg);
+}
+
+/* Animations */
+.section-content {
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

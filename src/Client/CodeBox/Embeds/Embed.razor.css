@@ -1,0 +1,121 @@
+﻿.embedded-fiddle {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #3f3f3f;
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+
+.embed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background-color: #252526;
+    border-bottom: 1px solid #3f3f3f;
+}
+
+.embed-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #0078d4;
+    font-weight: 500;
+}
+
+.view-original {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #cccccc;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+
+    .view-original:hover {
+        color: #ffffff;
+    }
+
+.embed-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.embedded-editor {
+    flex: 1;
+    min-height: 200px;
+}
+
+.embed-controls {
+    padding: 0.75rem;
+    background-color: #252526;
+    border-top: 1px solid #3f3f3f;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.embed-run-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    background-color: #0078d4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+    .embed-run-button:hover:not(:disabled) {
+        background-color: #006cbd;
+    }
+
+    .embed-run-button.running {
+        background-color: #28a745;
+    }
+
+.embed-output {
+    height: 100px;
+    background-color: #1e1e1e;
+    border-top: 1px solid #3f3f3f;
+    overflow: auto;
+    padding: 1rem;
+}
+
+.loading-output, .empty-output {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #cccccc;
+    gap: 0.5rem;
+}
+
+.spinner, .terminal-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.output-text {
+    margin: 0;
+    white-space: pre-wrap;
+    font-family: Consolas, 'Courier New', monospace;
+}

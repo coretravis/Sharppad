@@ -1,0 +1,78 @@
+﻿@using SharpPad.Client.Services.Components
+@inject ToastService ToastService
+@implements IDisposable
+
+<div class="toast-container">
+    @foreach (var toast in toasts)
+    {
+        <div class="@GetToastClasses(toast)" @key="toast.Id">
+            <div class="toast-icon">
+                @switch (toast.Type)
+                {
+                    case ToastType.Success:
+                        <i class="fas fa-check-circle"></i>
+                        break;
+                    case ToastType.Error:
+                        <i class="fas fa-times-circle"></i>
+                        break;
+                    case ToastType.Warning:
+                        <i class="fas fa-exclamation-circle"></i>
+                        break;
+                    case ToastType.Info:
+                        <i class="fas fa-info-circle"></i>
+                        break;
+                }
+            </div>
+            <div class="toast-content">
+                <p class="toast-message">@toast.Message</p>
+            </div>
+            <button class="toast-close" @onclick="() => RemoveToast(toast.Id)">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="toast-progress" style="animation-duration: @(toast.Duration)ms"></div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ToastMessage> toasts = new();
+
+    protected override void OnInitialized()
+    {
+        ToastService.OnToastAdded += AddToast;
+        ToastService.OnToastRemoved += RemoveToast;
+    }
+
+    private async void AddToast(ToastMessage toast)
+    {
+        toasts.Add(toast);
+        StateHasChanged();
+
+        // Auto remove after duration
+        await Task.Delay(toast.Duration);
+        RemoveToast(toast.Id);
+    }
+
+    private void RemoveToast(Guid id)
+    {
+        var toast = toasts.FirstOrDefault(t => t.Id == id);
+        if (toast != null)
+        {
+            toasts.Remove(toast);
+            StateHasChanged();
+        }
+    }
+
+    private string GetToastClasses(ToastMessage toast)
+    {
+        var classes = new List<string> { "toast" };
+        classes.Add(toast.Type.ToString().ToLower());
+        return string.Join(" ", classes);
+    }
+
+    public void Dispose()
+    {
+        ToastService.OnToastAdded -= AddToast;
+        ToastService.OnToastRemoved -= RemoveToast;
+    }
+}

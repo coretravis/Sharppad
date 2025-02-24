@@ -1,0 +1,413 @@
+﻿@using System
+@using System.Collections.Generic
+@using System.Linq
+@using System.Threading.Tasks
+@implements IAsyncDisposable
+@inject IJSRuntime JSRuntime
+
+<div class="console-terminal @(IsFullScreen ? "fullscreen" : "") @(IsActive ? "active" : "inactive")">
+    <div class="console-header">
+        <div class="console-title">
+            <i class="fas fa-terminal"></i>
+            <span>Console Output</span>
+        </div>
+        <div class="console-actions">
+            <button class="console-action-button" title="@(IsRunning ? "Running" : "")">
+                <i class="fas @(IsRunning ? "fa-refresh fa-spin console-active" : "fa-play")"></i>
+            </button>
+            <button class="console-action-button" @onclick="ToggleSearch" title="Search Console">
+                <i class="fas fa-search"></i>
+            </button>
+            <button class="console-action-button" @onclick="ExportConsoleData" title="Export Console Data">
+                <i class="fas fa-download"></i>
+            </button>
+            <button class="console-action-button" @onclick="ClearConsole" title="Clear Console">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            <button class="console-action-button" @onclick="ToggleFullScreen" title="@(IsFullScreen ? "Exit Full Screen" : "Full Screen")">
+                <i class="fas @(IsFullScreen ? "fa-compress" : "fa-expand")"></i>
+            </button>
+        </div>
+    </div>
+
+    @if (IsSearchActive)
+    {
+        <div class="console-search-bar">
+            <input type="text"
+                   @bind-value="SearchText"
+                   @bind-value:event="oninput"
+                   @onkeydown="HandleSearchKeyDown"
+                   placeholder="Search in console..." />
+            <div class="console-search-actions">
+                <span class="console-search-count">@CurrentSearchMatch of @TotalSearchMatches</span>
+                <button @onclick="@(() => NavigateSearch(false))" disabled="@(TotalSearchMatches == 0)">
+                    <i class="fas fa-chevron-up"></i>
+                </button>
+                <button @onclick="@(() => NavigateSearch(true))" disabled="@(TotalSearchMatches == 0)">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+                <button @onclick="CloseSearch">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="console-content" id="console-content" @ref="ConsoleContentRef">
+        @foreach (var entry in ConsoleHistory)
+        {
+            <div class="console-entry @entry.Type">
+                @if (entry.EntryAction != null)
+                {
+                    <pre class="entry-has-action" @onclick="() => {entry.EntryAction.Invoke(null);}">@RenderHtmlWithHighlight(entry.Text)</pre>
+                }
+                else
+                {
+                    <pre>@RenderHtmlWithHighlight(entry.Text)</pre>
+                }
+
+            </div>
+        }
+
+        @if (IsActive && WaitingForInput)
+        {
+            <div class="console-input-line">
+                <span class="prompt">></span>
+                <input type="text"
+                       @bind-value="CurrentInput"
+                       @bind-value:event="oninput"
+                       @onkeydown="HandleInputKeyDown"
+                       @ref="InputRef"
+                       autofocus />
+                <span class="cursor-blink"></span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+
+    [Parameter]
+    public EventCallback<string> OnInputSubmitted { get; set; }
+
+    [Parameter]
+    public bool IsRunning { get; set; } = false;
+
+    private ElementReference ConsoleContentRef;
+    private ElementReference InputRef;
+    private IJSObjectReference? module;
+
+    private List<ConsoleEntry> ConsoleHistory = new List<ConsoleEntry>();
+    private string CurrentInput = "";
+    private bool WaitingForInput = false;
+    private bool IsActive = true;
+    private bool IsFullScreen = false;
+    private bool IsSearchActive = false;
+    private string SearchText = "";
+    private int CurrentSearchMatch = 0;
+    private int TotalSearchMatches = 0;
+    private List<int> SearchMatchIndices = new List<int>();
+
+
+    private class ConsoleEntry
+    {
+        public string Text { get; set; } = string.Empty;
+        public Action<Task>? EntryAction { get; set; }
+        public string Type { get; set; } = string.Empty;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/console.js");
+            await module.InvokeVoidAsync("initConsole", ConsoleContentRef);
+        }
+
+        await ScrollToBottom();
+
+        if (WaitingForInput)
+        {
+            if (module is not null)
+            {
+                await module.InvokeVoidAsync("focusElement", InputRef);
+            }
+        }
+
+        if (IsSearchActive && !string.IsNullOrEmpty(SearchText))
+        {
+            await HighlightSearchMatches();
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        if (module is not null)
+        {
+            await module.InvokeVoidAsync("scrollToBottom", ConsoleContentRef);
+        }
+
+    }
+
+    public void Write(char c)
+    {
+        Write(c, null);
+    }
+
+    public void Write(char text, Action<Task>? action = null)
+    {
+        if (!IsActive) return;
+        if (text == '\r') return; // Ignore carriage returns
+
+        if (ConsoleHistory.Count == 0 || text == '\n')
+        {
+            if (ConsoleHistory.Count > 0 && text == '\n')
+            {
+                // Simply finalize the last entry without adding a new one
+                ConsoleHistory.Last().Text += "\n";
+                return;
+            }
+
+            ConsoleHistory.Add(new ConsoleEntry
+                {
+                    Text = string.Empty,
+                    Type = "output",
+                    EntryAction = action
+                });
+        }
+        else
+        {
+            ConsoleHistory.Last().Text += text;
+        }
+
+        StateHasChanged();
+    }
+
+
+
+    public void WriteError(string text, Action<Task>? action = null)
+    {
+        if (!IsActive) return;
+
+        ConsoleHistory.Add(new ConsoleEntry
+            {
+                Text = text,
+                Type = "error",
+                EntryAction = action
+            });
+
+        StateHasChanged();
+    }
+
+    public void WriteLine(string text, Action<Task>? action = null)
+    {
+        if (!IsActive) return;
+
+        ConsoleHistory.Add(new ConsoleEntry
+            {
+                Text = text,
+                Type = "output",
+                EntryAction = action
+            });
+
+        StateHasChanged();
+    }
+
+
+    public void WriteInfo(string text, Action<Task>? action = null)
+    {
+        if (!IsActive) return;
+
+        ConsoleHistory.Add(new ConsoleEntry
+            {
+                Text = text,
+                Type = "info",
+                EntryAction = action
+            });
+
+        StateHasChanged();
+    }
+
+    public void ShowInputLine()
+    {
+        if (!IsActive) return;
+
+        WaitingForInput = true;
+        CurrentInput = "";
+        StateHasChanged();
+    }
+
+    public void HideInputLine()
+    {
+        WaitingForInput = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleInputKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && WaitingForInput)
+        {
+            var input = CurrentInput;
+
+            // Add the input to the console history
+            ConsoleHistory.Add(new ConsoleEntry
+                {
+                    Text = "> " + input,
+                    Type = "input"
+                });
+
+            // Notify the parent component that input has been submitted
+            if (OnInputSubmitted.HasDelegate)
+            {
+                await OnInputSubmitted.InvokeAsync(input);
+            }
+
+            // Clear the input field but keep it visible
+            CurrentInput = "";
+
+            ConsoleHistory.Add(new ConsoleEntry
+                {
+                    Text = "",
+                    Type = "ouput"
+                });
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleActive()
+    {
+        IsActive = !IsActive;
+        StateHasChanged();
+    }
+
+    private void ToggleFullScreen()
+    {
+        IsFullScreen = !IsFullScreen;
+        StateHasChanged();
+
+    }
+
+    private void ToggleSearch()
+    {
+        IsSearchActive = !IsSearchActive;
+        if (IsSearchActive)
+        {
+            SearchText = "";
+            CurrentSearchMatch = 0;
+            TotalSearchMatches = 0;
+        }
+        StateHasChanged();
+    }
+
+    private void CloseSearch()
+    {
+        IsSearchActive = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await HighlightSearchMatches();
+        }
+        else if (e.Key == "Escape")
+        {
+            CloseSearch();
+        }
+    }
+
+    private async Task HighlightSearchMatches()
+    {
+        if (string.IsNullOrEmpty(SearchText))
+        {
+            TotalSearchMatches = 0;
+            CurrentSearchMatch = 0;
+            SearchMatchIndices.Clear();
+            return;
+        }
+
+        SearchMatchIndices.Clear();
+
+        for (int i = 0; i < ConsoleHistory.Count; i++)
+        {
+            if (ConsoleHistory[i].Text.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
+            {
+                SearchMatchIndices.Add(i);
+            }
+        }
+
+        TotalSearchMatches = SearchMatchIndices.Count;
+        CurrentSearchMatch = TotalSearchMatches > 0 ? 1 : 0;
+
+        if (TotalSearchMatches > 0)
+        {
+            await ScrollToMatch(0);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task NavigateSearch(bool forward)
+    {
+        if (TotalSearchMatches == 0) return;
+
+        if (forward)
+        {
+            CurrentSearchMatch = CurrentSearchMatch >= TotalSearchMatches ? 1 : CurrentSearchMatch + 1;
+        }
+        else
+        {
+            CurrentSearchMatch = CurrentSearchMatch <= 1 ? TotalSearchMatches : CurrentSearchMatch - 1;
+        }
+
+        await ScrollToMatch(CurrentSearchMatch - 1);
+        StateHasChanged();
+    }
+
+    private async Task ScrollToMatch(int matchIndex)
+    {
+        if (SearchMatchIndices.Count <= matchIndex) return;
+
+        int entryIndex = SearchMatchIndices[matchIndex];
+        await module.InvokeVoidAsync("scrollToEntry", ConsoleContentRef, entryIndex);
+    }
+
+    private string RenderHtmlWithHighlight(string text)
+    {
+        if (string.IsNullOrEmpty(SearchText) || !IsSearchActive)
+        {
+            return text;
+        }
+
+        return text.Replace(SearchText, $"<span class='highlight'>{SearchText}</span>");
+    }
+
+    public Task ClearConsole()
+    {
+        ConsoleHistory.Clear();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task ExportConsoleData()
+    {
+        var content = string.Join("\n", ConsoleHistory.Select(e => e.Text));
+        await module.InvokeVoidAsync("exportConsoleData", content);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Ignore if the JS runtime is disconnected
+            }
+        }
+    }
+}

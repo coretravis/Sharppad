@@ -1,0 +1,46 @@
+﻿.tags-component {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.tag-chip {
+    padding: 0.1rem .3rem;
+    background-color: var(--text-primary);
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+    .tag-chip:hover {
+        background-color: #eaeaea;
+    }
+
+    .tag-chip.selected {
+        background-color: #007bff;
+        color: #fff;
+        border-color: #007bff;
+    }
+
+.clear-container {
+    text-align: right;
+}
+
+.clear-button {
+    background: transparent;
+    border: none;
+    color: #007bff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-decoration: underline;
+    padding: 0;
+}
+
+    .clear-button:hover {
+        color: #0056b3;
+    }

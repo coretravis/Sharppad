@@ -1,0 +1,136 @@
+﻿@using SharpPad.Client.Services.Components
+@inject ToastService ToastService
+
+<header class="sharppad-header">
+    <div class="header-left">
+        <div class="logo-section">
+            <img class="header-logo" src="/img/shappard-logo.png" />
+            <span>Sharppad</span>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="primary-controls">
+            <button class="toolbar-button" title="New Script" @onclick="OnNewScript">
+                <i class="fas fa-file"></i>
+                <span>New</span>
+            </button>
+            <button class="toolbar-button" title="New Script" @onclick="OnSaveScript">
+                <i class="fas fa-file"></i>
+                <span>Save</span>
+            </button>
+            <button id="formatCodeButton" class="toolbar-button" title="Format Code">
+                <i class="fas fa-sort"></i>
+                <span>Format</span>
+            </button>
+            <button class="toolbar-button" title="Share Script" @onclick="OnShare">
+                <i class="fas fa-share-alt"></i>
+                <span>Share</span>
+            </button>
+        </div>
+        <div class="toolbar-divider"></div>
+    </div>
+    <div class="header-right">
+        <div class="secondary-controls">
+
+            <a href="@DocsUrl" class="toolbar-button" title="Documentation">
+                <i class="fas fa-book"></i> Docs
+            </a>
+            <button class="toolbar-button" title="Script Library" @onclick="OnOpenLibrary">
+                <i class="fas fa-list-alt"></i>Script Library
+            </button>
+            @if (IsLoggedIn)
+            {                
+                <div class="toolbar-divider"></div>
+                <button class="toolbar-button" title="Settings" @onclick="OnLogout">
+                    <i class="fas fa-user"></i> Logout
+                </button>
+            }
+            else
+            {
+                <div class="toolbar-divider"></div>
+                <button class="toolbar-button" title="Login" @onclick="OnLogin">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            }
+            <div class="toolbar-divider"></div>
+            <a href="@GitHubUrl" class="toolbar-button" title="Github">
+                <i class="fab fa-github"></i>
+            </a>
+            <div class="toolbar-divider"></div>
+        </div>
+        <button class="interactive-button @(IsInteractive ? "interactive" : "")" title="Turn on interaction for enhanced console usage" @onclick="ToggleInteractive" disabled="@IsRunning">
+
+            @if (IsInteractive)
+            {
+                <i class="fas fa-check"></i>
+            }
+            else
+            {
+                <i class="fas fa-close"></i>
+            }
+            <span>Interactive</span>
+        </button>
+
+        <button class="run-button @(IsRunning ? "running" : "")" @onclick="OnRun">
+            @if (IsRunning)
+            {
+                <i class="fas fa-refresh fa-spin"></i>
+                <span>Stop</span>
+            }
+            else
+            {
+                <i class="fas fa-play"></i>
+                <span>Run</span>
+            }
+        </button>
+    </div>
+</header>
+
+@code {
+    private string actionClass = "toolbar-button-action";
+    private const string GitHubUrl = "https://github.com/coretravis/shappard";
+    private const string DocsUrl = "https://coretravis.github.io/sharppad";
+
+    [Parameter]
+    public bool IsLoggedIn { get; set; }
+
+    [Parameter]
+    public bool IsRunning { get; set; }
+
+    [Parameter]
+    public bool IsInteractive { get; set; }
+
+    [Parameter]
+    public EventCallback OnNewScript { get; set; }
+
+    [Parameter]
+    public EventCallback OnShare { get; set; }
+
+    [Parameter]
+    public EventCallback OnSaveScript { get; set; }
+
+    [Parameter]
+    public EventCallback OnOpenLibrary { get; set; }
+
+    [Parameter]
+    public EventCallback OnLogin { get; set; }
+
+    [Parameter]
+    public EventCallback OnLogout { get; set; }
+
+    [Parameter]
+    public EventCallback OnRun { get; set; }
+
+    [Parameter]
+    public EventCallback OnInteractiveToggle { get; set; }
+
+    private async Task ToggleInteractive()
+    {
+        IsInteractive = !IsInteractive;
+        await OnInteractiveToggle.InvokeAsync();
+    }
+
+    private void RequiresAuth()
+    {
+        ToastService.ShowToast("You need to be logged in to perform this action", ToastType.Error, 3000);
+    }
+}

@@ -1,0 +1,76 @@
+﻿<div class="panel-section @(ActiveSection == SectionIdentifier ? "active" : "")">
+    <div class="section-header" @onclick="@(() => OnToggleSection.InvokeAsync(SectionIdentifier))">
+        <div class="header-content">
+            <i class="fas fa-chevron-@(ActiveSection == SectionIdentifier ? "down" : "right")"></i>
+            <i class="fas fa-cog"></i>
+            <span>COMPILER VERSION</span>
+        </div>
+    </div>
+    @if (ActiveSection == SectionIdentifier)
+    {
+        <div class="section-content">
+            <select class="compiler-select" @onchange="HandleVersionChange">
+                @foreach (var version in CompilerVersions)
+                {
+                    <option value="@version" selected="@(CurrentScript?.CompilerVersion == version)">
+                        @version
+                    </option>
+                }
+            </select>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The active panel section, passed in from the parent.
+    /// </summary>
+    [Parameter]
+    public string ActiveSection { get; set; } = "";
+
+    /// <summary>
+    /// Callback to toggle the section.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnToggleSection { get; set; }
+
+    /// <summary>
+    /// The identifier for this panel section.
+    /// </summary>
+    [Parameter]
+    public string SectionIdentifier { get; set; } = "compiler";
+
+    /// <summary>
+    /// The current script item (which is assumed to have a CompilerVersion property).
+    /// </summary>
+    [Parameter]
+    public ScriptItem? CurrentScript { get; set; }
+
+    /// <summary>
+    /// The list of available compiler versions.
+    /// </summary>
+    [Parameter]
+    public List<string> CompilerVersions { get; set; } = new();
+
+    /// <summary>
+    /// Callback invoked when a compiler version is selected.
+    /// </summary>
+    [Parameter]
+    public EventCallback<ScriptItem> OnSelectVersion { get; set; }
+
+    /// <summary>
+    /// Handles the change event of the compiler version select.
+    /// </summary>
+    /// <param name="e">The change event args containing the selected value.</param>
+    private async Task HandleVersionChange(ChangeEventArgs e)
+    {
+        var selectedVersion = e.Value?.ToString();
+        if (CurrentScript != null && !string.IsNullOrEmpty(selectedVersion))
+        {
+            // Update the script with the selected version.
+            CurrentScript.CompilerVersion = selectedVersion;
+            // Invoke the callback to notify the parent.
+            await OnSelectVersion.InvokeAsync(CurrentScript);
+        }
+    }
+}

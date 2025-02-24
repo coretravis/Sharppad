@@ -1,0 +1,386 @@
+﻿@page "/script-library"
+@using SharpPad.Client.Services.Components
+@using SharpPad.Client.Services.Library
+@inject ILibraryScriptClient LibraryClient
+@inject NavigationManager NavigationManager
+@inject ConfirmDialogService ConfirmDialogService
+
+<div class="script-library">
+    <!-- Sidebar -->
+    <aside class="library-sidebar">
+        <div class="library-sidebar-header">
+            <span class="icon"><i class="fas fa-book"></i></span>
+            <h1>Script Library</h1>
+        </div>
+
+        <nav class="library-category-nav">
+            @foreach (var category in Categories)
+            {
+                <button @onclick="() => SelectCategory(category.Id)"
+                        class="library-category-button @(ActiveCategory == category.Id ? "active" : "")">
+                    <span class="icon"><i class="fas fa-@category.Icon"></i></span>
+                    <span>@category.Name</span>
+                </button>
+            }
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="library-main-content">
+        <!-- Tabs -->
+        <div class="library-tabs">
+            <button class="library-tab-button @(ActiveTab == Tabs.My ? "active" : "")"
+                    @onclick="() => SwitchTab(Tabs.My)">
+                My Scripts
+            </button>
+            <button class="library-tab-button @(ActiveTab == Tabs.Public ? "active" : "")"
+                    @onclick="() => SwitchTab(Tabs.Public)">
+                Public Scripts
+            </button>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="library-search-bar">
+            <div class="library-search-input-wrapper">
+                <span class="library-search-icon"><i class="fas fa-search"></i></span>
+                <input type="text"
+                       placeholder="Search scripts..."
+                       @bind="SearchTerm"
+                       @bind:event="oninput"
+                       @onkeyup="HandleSearch" />
+            </div>
+            <select @bind="SortOption" class="library-sort-select">
+                <option value="recent">Most Recent</option>
+                <option value="popular">Most Popular</option>
+                <option value="alpha">Alphabetical</option>
+            </select>
+        </div>
+        @if (ActiveTab == Tabs.My && UserLoggedIn == false)
+        {
+            <h3><a href="/auth">Login</a> to save and share your own scripts</h3>
+        }
+        @if (IsLoading && CurrentPage == 0)
+        {
+            <div class="library-loading-container">
+                <div class="library-loader"></div>
+                <p>Loading scripts...</p>
+            </div>
+        }
+        else if (Scripts.Count == 0)
+        {
+            <div class="empty-state">
+                <p>No scripts found.</p>
+            </div>
+        }
+        else
+        {
+            <!-- Scripts Grid -->
+            <div class="library-scripts-grid">
+                
+                @foreach (var script in Scripts)
+                {
+                   
+                    <div class="library-script-card">
+                        <div class="library-script-card-header">
+                            <h3 class="truncate">@script.Title</h3>
+                            <div class="library-script-actions">
+                                <button @onclick="() => PreviewScript(script)"
+                                        class="library-action-button"
+                                        title="View">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                @if (ActiveTab == "my" || !script.IsPrivate)
+                                {
+                                    <button @onclick="() => DownloadScript(script.Id)"
+                                            class="library-action-button"
+                                            title="Load Script">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                }
+                                @if (ActiveTab == "my")
+                                {
+                                    <button @onclick="() => DeleteScript(script.Id)"
+                                            class="library-action-button delete"
+                                            title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        <p class="library-script-description truncate">
+                            @(!string.IsNullOrWhiteSpace(script.Description) ? script.Description : "No description provided!")
+                        </p>
+                        <div class="library-script-metadata">
+                            <span class="author"><i class="fas fa-user"></i> @script.Author</span>
+                            <span class="language"><i class="fas fa-code"></i> @script.Language</span>
+                            @if (script.IsPrivate)
+                            {
+                                <span class="private"><i class="fas fa-lock"></i> Private</span>
+                            }
+                        </div>
+                        <div class="library-script-tags">
+                            @foreach (var tag in GetScriptTags(script.Tags))
+                            {
+                                <span class="tag">@tag</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (HasMoreScripts)
+            {
+                <button @onclick="LoadMoreScripts"
+                        class="library-load-more-button"
+                        disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <div class="library-loader"></div>
+                    }
+                    else
+                    {
+                        <span>Load More Scripts</span>
+                    }
+                </button>
+            }
+        }
+    </main>
+
+    @if (ShowDeleteConfirmation)
+    {
+        <div class="library-modal-overlay">
+            <div class="modal">
+                <h3>Delete Script</h3>
+                <p>Are you sure you want to delete this script? This action cannot be undone.</p>
+                <div class="library-modal-actions">
+                    <button class="library-cancel-button" @onclick="CancelDelete">Cancel</button>
+                    <button class="library-delete-button" @onclick="ConfirmDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (ShowScriptPreview)
+    {
+        <div class="library-modal-overlay">
+            <div class="modal" style="padding:10px;">
+                <p>@SelectedScript.Title</p>
+                <textarea disabled="disabled" rows="10" style="border:0; padding:0; background:transparent; width:100%; color:#d7d7d7;">
+                    @SelectedScript.Description
+                </textarea>
+                <div class="library-modal-actions">
+                    <button class="library-cancel-button" @onclick="async () => await DownloadScript(SelectedScript.Id)">Load Script</button>
+                    <button class="library-delete-button" @onclick="ClosePreview">Close</button>
+                </div>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private List<LibraryScript> Scripts { get; set; } = new();
+    private string SearchTerm { get; set; } = "";
+    private string ActiveCategory { get; set; } = "all";
+    private string ActiveTab { get; set; } = Tabs.My;
+    private string SortOption { get; set; } = "recent";
+    private bool IsLoading { get; set; }
+    private bool HasMoreScripts { get; set; } = true;
+    private int CurrentPage { get; set; } = 0;
+    private const int PageSize = 10;
+    private bool ShowDeleteConfirmation { get; set; }
+    private Guid? ScriptToDelete { get; set; }
+    private LibraryScript SelectedScript { get; set; } = new();
+    private bool ShowScriptPreview { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<LibraryScript> ScriptSelected { get; set; }
+
+    [Parameter]
+    public bool UserLoggedIn { get; set; }
+
+    private static class Tabs
+    {
+        public static string My { get; set; } = "my";
+        public static string Public { get; set; } = "public";
+    }
+
+    private readonly List<CategoryItem> Categories = new()
+    {
+        new("all", "All Scripts", "list"),
+        new("algorithms", "Algorithms", "rotate"),
+        new("data-structures", "Data Structures", "database"),
+        new("utilities", "Utilities", "tools"),
+        new("sorting", "Sorting", "sort"),
+        new("networking", "Networking", "globe"),
+        new("games", "Games", "laptop"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadScripts();
+    }
+
+    private Task<IEnumerable<LibraryScript>> GetUserScriptsAsync(int skip, int take, CancellationToken cancellationToken = default)
+    {
+        if (UserLoggedIn)
+        {
+            return LibraryClient.GetAllUserScriptsAsync(skip, take, cancellationToken);
+        }
+        return Task.FromResult(new List<LibraryScript>().AsEnumerable());
+    }
+
+    private Task<IEnumerable<LibraryScript>> SearchUserScriptsAsync(int skip, int take, CancellationToken cancellationToken = default)
+    {
+        if (UserLoggedIn)
+        {
+            return LibraryClient.SearchUserScriptsAsync(SearchTerm, CurrentPage * PageSize, PageSize);
+        }
+        return Task.FromResult(new List<LibraryScript>().AsEnumerable());
+    }
+
+    private async Task LoadScripts()
+    {
+        try
+        {
+            IsLoading = true;
+            IEnumerable<LibraryScript> newScripts;
+
+            if (string.IsNullOrWhiteSpace(SearchTerm))
+            {
+                newScripts = ActiveTab == "my"
+                    ? await GetUserScriptsAsync(CurrentPage * PageSize, PageSize)
+                    : await LibraryClient.GetAllPublicScriptsAsync(CurrentPage * PageSize, PageSize);
+            }
+            else
+            {
+                newScripts = ActiveTab == "my"
+                    ? await SearchUserScriptsAsync(CurrentPage * PageSize, PageSize)
+                    : await LibraryClient.SearchPublicScriptsAsync(SearchTerm, CurrentPage * PageSize, PageSize);
+            }
+
+            if (ActiveCategory != "all")
+            {
+                newScripts = newScripts.Where(s => s.Tags.Contains(ActiveCategory));
+            }
+
+            var scriptsList = newScripts.ToList();
+
+            if (CurrentPage == 0)
+            {
+                Scripts = scriptsList;
+            }
+            else
+            {
+                Scripts.AddRange(scriptsList);
+            }
+
+            HasMoreScripts = scriptsList.Count == PageSize;
+            CurrentPage++;
+        }
+        catch (Exception ex)
+        {
+            // Handle error - show toast notification or error message
+            Console.Error.WriteLine($"Error loading scripts: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMoreScripts()
+    {
+        await LoadScripts();
+    }
+
+    private async Task HandleSearch()
+    {
+        CurrentPage = 0;
+        await LoadScripts();
+    }
+
+    private async Task SwitchTab(string tab)
+    {
+        if (ActiveTab != tab)
+        {
+            ActiveTab = tab;
+            CurrentPage = 0;
+            Scripts.Clear();
+            await LoadScripts();
+        }
+    }
+
+    private async Task SelectCategory(string categoryId)
+    {
+        ActiveCategory = categoryId;
+        CurrentPage = 0;
+        Scripts.Clear();
+        await LoadScripts();
+    }
+
+    private IEnumerable<string> GetScriptTags(string tags) =>
+        tags?.Split(';').Select(t => t.Trim()) ?? Array.Empty<string>();
+
+    private void PreviewScript(LibraryScript libScript)
+    {
+        SelectedScript = libScript;
+        ShowScriptPreview = true;
+    }
+
+    private void ClosePreview()
+    {
+        ShowScriptPreview = false;
+    }
+
+    private async Task DownloadScript(Guid scriptId)
+    {
+        try
+        {
+            var script = await LibraryClient.GetScriptByIdAsync(scriptId.ToString(), true);
+            ShowScriptPreview = false;
+            await ScriptSelected.InvokeAsync(script);
+
+
+        }
+        catch (Exception ex)
+        {
+            // Handle error
+            Console.Error.WriteLine($"Error downloading script: {ex.Message}");
+        }
+    }
+
+    private void DeleteScript(Guid scriptId)
+    {
+        ScriptToDelete = scriptId;
+        ShowDeleteConfirmation = true;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (ScriptToDelete.HasValue)
+        {
+            try
+            {
+                await LibraryClient.DeleteScriptAsync(ScriptToDelete.Value.ToString());
+                Scripts.RemoveAll(s => s.Id == ScriptToDelete.Value);
+            }
+            catch (Exception ex)
+            {
+                // Handle error
+                Console.Error.WriteLine($"Error deleting script: {ex.Message}");
+            }
+        }
+        ShowDeleteConfirmation = false;
+        ScriptToDelete = null;
+    }
+
+    private void CancelDelete()
+    {
+        ShowDeleteConfirmation = false;
+        ScriptToDelete = null;
+    }
+
+    private record CategoryItem(string Id, string Name, string Icon);
+}

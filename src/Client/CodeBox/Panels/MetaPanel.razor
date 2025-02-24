@@ -1,0 +1,119 @@
+﻿@using SharpPad.Client.Components
+
+<div class="panel-section @(ActiveSection == SectionIdentifier ? "active" : "")">
+    <div class="section-header" @onclick="() => OnToggleSection.InvokeAsync(SectionIdentifier)">
+        <div class="header-content">
+            <i class="fas fa-chevron-@(ActiveSection == SectionIdentifier ? "down" : "right")"></i>
+            <i class="fas fa-info-circle"></i>
+            <span>SCRIPT META</span>
+        </div>
+    </div>
+    @if (ActiveSection == SectionIdentifier)
+    {
+        <div class="section-content">
+            <div class="meta-form">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" @bind="Script.Title" disabled="@(!IsEditable)" />
+                </div>
+                <div class="form-group">
+                    <label>Author</label>
+                    <input type="text" @bind="Script.Author" disabled="disabled" />
+                </div>
+                <div class="form-group">
+                    <label>Tags</label>
+                    <Tags TagList="@Script.Tags"
+                          TagsChanged="@(newTags => Script.Tags = newTags)"
+                          PredefinedTags="@Categories" />
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea @bind="Script.Description" disabled="@(!IsEditable)"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Visibility</label>
+                    <select class="compiler-select"
+                            @onchange="HandleVersionChange"
+                            disabled="@(!IsEditable)">
+                        <option value="false" selected="@(Script.IsPrivate == false)">Public</option>
+                        <option value="true" selected="@(Script.IsPrivate == true)">Private</option>
+                    </select>
+                </div>
+                @if (IsEditable)
+                {
+                    <div class="form-group">
+                        <button class="meta-save-button" @onclick="SaveScript">Save</button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The current active section key (from the parent).
+    /// </summary>
+    [Parameter]
+    public string ActiveSection { get; set; } = "";
+
+    [Parameter]
+    public string CurrentUsername { get; set; } = "";
+
+    /// <summary>
+    /// Callback for toggling the active section.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnToggleSection { get; set; }
+
+    [Parameter]
+    public EventCallback<ScriptItem> MetaChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<ScriptItem> ScriptSaved { get; set; }
+
+    /// <summary>
+    /// A key to identify this panel section.
+    /// </summary>
+    [Parameter]
+    public string SectionIdentifier { get; set; } = "meta";
+
+    /// <summary>
+    /// The script item whose meta data is shown/edited in this panel.
+    /// </summary>
+    [Parameter]
+    public ScriptItem Script { get; set; } = default!;
+
+    // Predefined tags for the Tags component.
+    private readonly List<string> Categories = new()
+    {
+        "algorithms",
+        "data-structures",
+        "utilities",
+        "sorting",
+        "networking",
+        "games"
+    };
+
+    // Determines if the form is editable.
+    private bool IsEditable => Script != null && Script.ReadOnly != true;
+
+    private async Task HandleVersionChange(ChangeEventArgs e)
+    {
+        if (e.Value is string value && Script != null)
+        {
+            // Update the script's visibility.
+            Script.IsPrivate = bool.Parse(value);
+            await MetaChanged.InvokeAsync(Script);
+        }
+    }
+
+    private async Task SaveScript()
+    {
+        if (Script != null)
+        {
+            await MetaChanged.InvokeAsync(Script);
+            await ScriptSaved.InvokeAsync(Script);
+        }
+    }
+}

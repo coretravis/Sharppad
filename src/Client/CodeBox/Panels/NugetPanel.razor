@@ -1,0 +1,485 @@
+﻿@using SharpPad.Client.Components
+@using SharpPad.Client.Services.Integrations
+@using SharpPad.Shared.Models
+@using System.Timers
+@using SharpPad.Shared.Models.Nuget
+@inject INuGetSearchService NuGetService
+
+<div class="panel-section @(ActiveSection == SectionIdentifier ? "active" : "")">
+    <div class="section-header" @onclick="() => OnToggleSection.InvokeAsync(SectionIdentifier)">
+        <div class="header-content">
+            <i class="fas fa-chevron-@(ActiveSection == SectionIdentifier ? "down" : "right")"></i>
+            <i class="fas fa-box"></i>
+            <span>NUGET PACKAGES</span>
+            @if (ActiveSection == SectionIdentifier)
+            {
+                <button class="nuget-expand-button" title="Manage Packages" @onclick:stopPropagation @onclick="ToggleFullScreen">
+                    <i class="fas fa-edit"></i>
+                </button>
+            }
+        </div>
+    </div>
+    @if (ActiveSection == SectionIdentifier)
+    {
+        <div class="nuget-section-content">
+            <div class="scripts-actions">
+              
+            </div>
+            <div class="packages-container">
+                <div class="nuget-packages-list">
+                    @foreach (var package in FilteredPackages)
+                    {
+                        <div class="package-item">
+                            <div class="package-content">
+                                <div class="package-header">
+                                    <div class="package-info">
+                                        <i class="fas fa-box package-icon"></i>
+                                        <span class="package-title" title="@package.Id">@package.Id</span>
+                                        @if (!string.IsNullOrEmpty(package.Version))
+                                        {
+                                            <!-- When the version is clicked, open the version selector -->
+                                            <button class="package-version-button" title="Change Version" @onclick="() => ShowVersionSelector(package)">
+                                                @package.Version
+                                            </button>
+                                        }
+                                    </div>
+                                    <div class="package-actions">
+                                        <button class="nuget-icon-button" title="Remove" @onclick="() => RemovePackage.InvokeAsync(package)">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!FilteredPackages.Any())
+                    {
+                        <p>No packages installed</p>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<Modal Title="NuGet Packages"
+       IsOpen="@IsFullScreenOpen"
+       Size="Modal.ModalSize.Large"
+       Position="Modal.ModalPosition.Top"
+       IsOpenChanged="@((bool value) => IsFullScreenOpen = value)">
+    <ChildContent>
+        <div class="nuget-fullscreen-layout">
+            <div class="packages-container">
+                <div class="nuget-tabs">
+                    <button class="nuget-tab-button @(ActiveTab == "installed" ? "active" : "")"
+                            @onclick="() => ActiveTab = MagicStrings.Installed">
+                        <i class="fas fa-box"></i>
+                        Installed Packages
+                    </button>
+                    <button class="nuget-tab-button @(ActiveTab == "search" ? "active" : "")"
+                            @onclick="() => ActiveTab = MagicStrings.Search">
+                        <i class="fas fa-search"></i>
+                        Browse Packages
+                    </button>
+                </div>
+
+                @if (ActiveTab == "installed")
+                {
+                    <div class="nuget-search-container">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text"
+                               class="nuget-search-input"
+                               placeholder="Filter installed packages..."
+                               @bind-value="SearchTerm"
+                               @bind-value:event="oninput" />
+                    </div>
+                    <div class="nuget-packages-list fullscreen">
+                        @foreach (var package in FilteredPackages)
+                        {
+                            <div class="package-item">
+                                <div class="package-content">
+                                    <div class="package-header">
+                                        <div class="package-info">
+                                            <i class="fas fa-box package-icon"></i>
+                                            <span class="package-title" title="@package.Id">@package.Id</span>
+                                        </div>
+                                        <div class="package-actions">
+                                            <button class="nuget-icon-button" title="Browse" @onclick="() => OnBrowsePackage.InvokeAsync(package)">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </button>
+                                            <button class="nuget-icon-button" title="Update" @onclick="() => OnUpdatePackage.InvokeAsync(package)">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </button>
+                                            <button class="nuget-icon-button" title="Remove" @onclick="() => RemovePackage.InvokeAsync(package)">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="nuget-package-metadata">
+                                        @if (!string.IsNullOrEmpty(package.Version))
+                                        {
+                                            <div class="nuget-metadata-item">
+                                                <i class="fas fa-tag"></i>
+                                                <span>@package.Version</span>
+                                            </div>
+                                        }
+                                        @if ((package.Authors != null))
+                                        {
+                                            <div class="nuget-metadata-item">
+                                                <i class="fas fa-user"></i>
+                                                <span>
+                                                    @foreach (var author in package.Authors)
+                                                    {
+                                                        <em>@author</em>
+                                                    }
+                                                </span>
+
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!FilteredPackages.Any())
+                        {
+                            <p>No packages installed</p>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="nuget-search-container">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text"
+                               class="nuget-search-input"
+                               placeholder="Search NuGet packages..."
+                               value="@NugetSearchTerm"
+                               @oninput="OnNugetSearchInput" />
+                    </div>
+                    <div class="nuget-packages-list fullscreen">
+                        @if (IsSearching && !SearchResults.Any())
+                        {
+                            <div class="nuget-search-nuget-loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span>Searching packages...</span>
+                            </div>
+                        }
+                        else if (SearchResults?.Any() == true)
+                        {
+                            @foreach (var package in SearchResults)
+                            {
+                                <div class="package-item">
+                                    <div class="package-content">
+                                        <div class="package-header">
+                                            <div class="package-info">
+                                                <i class="fas fa-box package-icon"></i>
+                                                <span class="package-title" title="@package.Id">
+                                                    @(string.IsNullOrEmpty(package.Title) ? package.Id : package.Title)
+                                                </span>
+                                            </div>
+                                            <div class="package-actions">
+                                                @if (packageInstalled(package))
+                                                {
+                                                    <button class="nuget-primary-button" title="Remove"
+                                                            @onclick="() => RemovePackage.InvokeAsync(package)">
+                                                        <i class="fas fa-close"></i>
+                                                        Remove
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="nuget-primary-button" title="Install"
+                                                            @onclick="() => InstallPackage.InvokeAsync(package)">
+                                                        <i class="fas fa-download"></i>
+                                                        Install
+                                                    </button>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="nuget-package-metadata">
+                                            <div class="nuget-metadata-item">
+                                                <i class="fas fa-tag"></i>
+                                                <span>@package.Version</span>
+                                            </div>
+                                            @if ((package.Authors != null))
+                                            {
+                                                <div class="nuget-metadata-item">
+                                                    <i class="fas fa-user"></i>
+                                                    <span>
+                                                        @foreach (var author in package.Authors)
+                                                        {
+                                                            <em>@author</em>
+                                                        }
+                                                    </span>
+
+                                                </div>
+                                            }
+                                            <div class="nuget-metadata-item">
+                                                <i class="fas fa-download"></i>
+                                                <span>@package.TotalDownloads.ToString("N0") downloads</span>
+                                            </div>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(package.Description))
+                                        {
+                                            <div class="nuget-package-description">
+                                                @package.Description
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            <!-- Load More button / indicator -->
+                            <div class="load-more-container">
+                                @if (IsSearching)
+                                {
+                                    <div class="nuget-search-nuget-loading">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <span>Loading more...</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <button class="load-more-button" @onclick="LoadMoreResults">
+                                        Load More
+                                    </button>
+                                }
+                            </div>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(NugetSearchTerm))
+                        {
+                            <div class="nuget-no-results">
+                                <i class="fas fa-search"></i>
+                                <span>No packages found matching '@NugetSearchTerm'</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+            </div>
+        </div>
+    </ChildContent>
+</Modal>
+
+
+<Modal Title="Select Package Version"
+       IsOpen="@IsVersionSelectorOpen"
+       Size="Modal.ModalSize.Large"
+       Position="Modal.ModalPosition.Center"
+       IsOpenChanged="@((bool value) => IsVersionSelectorOpen = value)">
+    <ChildContent>
+        <div class="nuget-version-selector">
+            <h3>Select a version for @CurrentPackageForVersion?.Id</h3>
+            <div class="version-list">
+                @if (IsLoadingVersions)
+                {
+                    <div class="nuget-loading">
+                        <i class="fas fa-spinner fa-spin"></i> Loading versions...
+                    </div>
+                }
+                else if (PackageVersions != null && PackageVersions.Any())
+                {
+                    @foreach (var version in PackageVersions)
+                    {
+                        <button class="version-item" @onclick="() => OnVersionSelected(version)">
+                            @version
+                        </button>
+                    }
+                }
+                else
+                {
+                    <p>No versions found.</p>
+                }
+            </div>
+            <div class="nuget-modal-actions">
+                <button class="nuget-secondary-button" @onclick="CloseVersionSelector">Cancel</button>
+            </div>
+        </div>
+    </ChildContent>
+</Modal>
+
+@code {
+    [Parameter]
+    public string ActiveSection { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<string> OnToggleSection { get; set; }
+
+    [Parameter]
+    public string SectionIdentifier { get; set; } = "nuget";
+
+    [Parameter]
+    public IEnumerable<NugetPackage> InstalledPackages { get; set; } = Enumerable.Empty<NugetPackage>();
+
+    [Parameter]
+    public EventCallback<NugetPackage> RemovePackage { get; set; }
+
+    [Parameter]
+    public EventCallback<NugetPackage> OnBrowsePackage { get; set; }
+
+    [Parameter]
+    public EventCallback<NugetPackage> OnUpdatePackage { get; set; }
+
+    [Parameter]
+    public EventCallback<NugetPackage> InstallPackage { get; set; }
+
+    private string SearchTerm { get; set; } = "";
+    private string NugetSearchTerm { get; set; } = "";
+    private bool IsFullScreenOpen { get; set; }
+    private string ActiveTab { get; set; } = "installed";
+    private bool IsSearching { get; set; }
+    private IEnumerable<NugetPackage> SearchResults { get; set; } = Enumerable.Empty<NugetPackage>();
+    private Timer _debounceTimer;
+    private int _currentPage = 0;
+    private const int PageSize = 20;
+    private bool _hasMoreResults = true;
+
+    // Properties for version selection
+    private bool IsVersionSelectorOpen { get; set; }
+    private NugetPackage? CurrentPackageForVersion { get; set; }
+    private List<string> PackageVersions { get; set; } = new List<string>();
+    private bool IsLoadingVersions { get; set; }
+
+    public static class MagicStrings
+    {
+        public const string Installed = "installed";
+        public const string Search = "search";
+    }
+
+    protected override void OnInitialized()
+    {
+        _debounceTimer = new Timer(500); // 500ms debounce
+        _debounceTimer.Elapsed += async (sender, e) => await SearchNugetPackagesDebounced();
+        _debounceTimer.AutoReset = false;
+    }
+
+    private IEnumerable<NugetPackage> FilteredPackages => InstalledPackages
+        .Where(package => string.IsNullOrEmpty(SearchTerm) ||
+                         package.Id.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    private void ToggleFullScreen()
+    {
+        IsFullScreenOpen = !IsFullScreenOpen;
+    }
+
+    private bool packageInstalled(NugetPackage package) => InstalledPackages.Any(x => x.Id == package.Id);
+
+    private Task OnNugetSearchInput(ChangeEventArgs e)
+    {
+        NugetSearchTerm = e.Value?.ToString() ?? "";
+        _currentPage = 0;
+        _hasMoreResults = true;
+        SearchResults = Enumerable.Empty<NugetPackage>();
+
+        _debounceTimer.Stop();
+        if (!string.IsNullOrWhiteSpace(NugetSearchTerm))
+        {
+            _debounceTimer.Start();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task SearchNugetPackagesDebounced()
+    {
+        await InvokeAsync(async () =>
+        {
+            await SearchNugetPackages();
+            StateHasChanged();
+        });
+    }
+
+    private async Task SearchNugetPackages()
+    {
+        if (string.IsNullOrWhiteSpace(NugetSearchTerm))
+        {
+            SearchResults = Enumerable.Empty<NugetPackage>();
+            return;
+        }
+
+        IsSearching = true;
+        try
+        {
+            var results = await NuGetService.SearchPackagesAsync(
+                NugetSearchTerm,
+                _currentPage * PageSize,
+                PageSize
+            );
+
+            var resultsList = results.ToList();
+            _hasMoreResults = resultsList.Count == PageSize;
+
+            if (_currentPage == 0)
+            {
+                SearchResults = resultsList;
+            }
+            else
+            {
+                SearchResults = SearchResults.Concat(resultsList);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error searching packages: {ex.Message}");
+        }
+        finally
+        {
+            IsSearching = false;
+        }
+    }
+
+    private async Task LoadMoreResults()
+    {
+        if (!_hasMoreResults || IsSearching) return;
+
+        _currentPage++;
+        await SearchNugetPackages();
+    }
+
+    // Called when the version button is clicked
+    private async Task ShowVersionSelector(NugetPackage package)
+    {
+        CurrentPackageForVersion = package;
+        IsVersionSelectorOpen = true;
+        IsLoadingVersions = true;
+        PackageVersions.Clear();
+
+        try
+        {
+            // Call the new method in the NuGetService to get all versions
+            var versions = await NuGetService.GetPackageVersionsAsync(package.Id);            
+            PackageVersions = versions.OrderByDescending(v => v).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error nuget-loading versions for {package.Id}: {ex.Message}");
+        }
+        finally
+        {
+            IsLoadingVersions = false;
+            StateHasChanged();
+        }
+    }
+
+    // When a version is selected, update the package
+    private void OnVersionSelected(string version)
+    {
+        if (CurrentPackageForVersion != null)
+        {
+            CurrentPackageForVersion.Version = version;
+        }
+        IsVersionSelectorOpen = false;
+    }
+
+    private void CloseVersionSelector()
+    {
+        IsVersionSelectorOpen = false;
+    }
+
+    public void Dispose()
+    {
+        _debounceTimer?.Dispose();
+    }
+}

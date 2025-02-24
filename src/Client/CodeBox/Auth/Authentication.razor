@@ -1,0 +1,375 @@
+﻿@page "/auth"
+@using SharpPad.Client.Components
+@using SharpPad.Client.Services.Auth
+@using SharpPad.Client.Services.Components
+@using SharpPad.Shared.Models.Auth
+@inject IAuthClient AuthClient
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ToastService ToastService
+@inject IConfiguration  Configuration
+@layout AuthenticationLayout
+
+<div class="auth__wrapper">
+    <div class="auth__background">
+        <div class="auth__grid">
+            @for (int i = 0; i < 20; i++)
+            {
+                <div class="auth__grid-line auth__grid-line--horizontal" style="animation-delay:@($"{i * 0.1}s")"></div>
+                <div class="auth__grid-line auth__grid-line--vertical" style="animation-delay:@($"{i * 0.1}s")"></div>
+            }
+        </div>
+
+        <div class="auth__circles">
+            @for (int i = 0; i < 5; i++)
+            {
+                <div class="auth__circle" style="animation-delay:@($"{i * 0.3}s")"></div>
+            }
+        </div>
+
+        <div class="auth__code-particles">
+            @foreach (var symbol in new[] { "{", "}", "<", ">", "//", "[]", "()", ";" })
+            {
+                <div class="auth__code-particle" style="animation-delay:@($"{Random.Shared.NextDouble() * 5}s")">@symbol</div>
+            }
+        </div>
+    </div>
+
+    <div class="auth__container">
+        <div class="auth__logo">
+            <div class="auth__logo-icon">
+                <img class="header-logo" src="/img/shappard-logo.png" />
+            </div>
+            <h1 class="auth__logo-title">SharpPad</h1>
+            <p class="auth__logo-subtitle">Code. Collaborate. Create.</p>
+        </div>
+
+        <div class="auth__tabs">
+            <button class="auth__tab @(isLogin ? "active" : "")" @onclick="ShowLogin">
+                <i class="fas fa-sign-in-alt"></i>
+                <span>Login</span>
+            </button>
+            <button class="auth__tab @(!isLogin ? "active" : "")" @onclick="ShowRegister">
+                <i class="fas fa-user-plus"></i>
+                <span>Register</span>
+            </button>
+        </div>
+
+        <div class="auth__forms">
+            @if (isLogin)
+            {
+                <div class="auth__form auth__form--login">
+                    <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="auth__validation" />
+
+                        <div class="auth__form-field">
+                            <label for="login-username" class="auth__label">
+                                <i class="fas fa-user"></i>
+                                <span>Username</span>
+                            </label>
+                            <InputText id="login-username"
+                                       class="auth__input"
+                                       @bind-Value="loginModel.Username"
+                                       placeholder="Enter your username" />
+                            <ValidationMessage For="@(() => loginModel.Username)" />
+                        </div>
+
+                        <div class="auth__form-field">
+                            <label for="login-password" class="auth__label">
+                                <i class="fas fa-lock"></i>
+                                <span>Password</span>
+                            </label>
+                            <div class="auth__password-input">
+                                <InputText id="login-password"
+                                           type="@(showPassword ? "text" : "password")"
+                                           class="auth__input"
+                                           @bind-Value="loginModel.Password"
+                                           placeholder="Enter your password" />
+                                <button type="button" class="auth__toggle-password" @onclick="TogglePassword">
+                                    <i class="fas @(showPassword ? "fa-eye-slash" : "fa-eye")"></i>
+                                </button>
+                            </div>
+                            <ValidationMessage For="@(() => loginModel.Password)" />
+                        </div>
+
+                        <div class="auth__actions">
+                            <button type="submit" class="auth__submit" disabled="@isProcessing">
+                                @if (isProcessing)
+                                {
+                                    <span class="auth__spinner"></span>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-sign-in-alt"></i>
+                                }
+                                <span>@(isProcessing ? "Logging in..." : "Login")</span>
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            }
+            else
+            {
+                <div class="auth__form auth__form--register">
+                    <EditForm Model="registerModel" OnValidSubmit="HandleRegister">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="auth__validation" />
+
+                        <div class="auth__form-field">
+                            <label for="register-username" class="auth__label">
+                                <i class="fas fa-user"></i>
+                                <span>Username</span>
+                            </label>
+                            <InputText id="register-username"
+                                       class="auth__input"
+                                       @bind-Value="registerModel.Username"
+                                       placeholder="Choose a username" />
+                            <ValidationMessage For="@(() => registerModel.Username)" />
+                        </div>
+
+                        <div class="auth__form-field">
+                            <label for="register-email" class="auth__label">
+                                <i class="fas fa-envelope"></i>
+                                <span>Email</span>
+                            </label>
+                            <InputText id="register-email"
+                                       type="email"
+                                       class="auth__input"
+                                       @bind-Value="registerModel.Email"
+                                       placeholder="Enter your email" />
+                            <ValidationMessage For="@(() => registerModel.Email)" />
+                        </div>
+
+                        <div class="auth__form-field">
+                            <label for="register-password" class="auth__label">
+                                <i class="fas fa-lock"></i>
+                                <span>Password</span>
+                            </label>
+                            <div class="auth__password-input">
+                                <InputText id="register-password"
+                                           type="@(showPassword ? "text" : "password")"
+                                           class="auth__input"
+                                           @bind-Value="registerModel.Password"
+                                           placeholder="Choose a password" />
+                                <button type="button" class="auth__toggle-password" @onclick="TogglePassword">
+                                    <i class="fas @(showPassword ? "fa-eye-slash" : "fa-eye")"></i>
+                                </button>
+                            </div>
+                            <ValidationMessage For="@(() => registerModel.Password)" />
+                        </div>
+
+                        <div class="auth__form-field">
+                            <label for="register-confirmPassword" class="auth__label">
+                                <i class="fas fa-lock"></i>
+                                <span>Confirm Password</span>
+                            </label>
+                            <div class="auth__password-input">
+                                <InputText id="register-confirmPassword"
+                                           type="@(showPassword ? "text" : "password")"
+                                           class="auth__input"
+                                           @bind-Value="registerModel.ConfirmPassword"
+                                           placeholder="Confirm your password" />
+                                <button type="button" class="auth__toggle-password" @onclick="TogglePassword">
+                                    <i class="fas @(showPassword ? "fa-eye-slash" : "fa-eye")"></i>
+                                </button>
+                            </div>
+                            <ValidationMessage For="@(() => registerModel.ConfirmPassword)" />
+                        </div>
+
+                        <div class="auth__actions">
+                            <button type="submit" class="auth__submit" disabled="@isProcessing">
+                                @if (isProcessing)
+                                {
+                                    <span class="auth__spinner"></span>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-user-plus"></i>
+                                }
+                                <span>@(isProcessing ? "Creating Account..." : "Register")</span>
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            }
+        </div>
+
+
+        <div class="auth__divider">
+            <span class="auth__divider-text">or continue with</span>
+        </div>
+
+        <div class="auth__social">
+            <button class="auth__social-button auth__social-button--github" @onclick="HandleGitHubSignIn">
+                <i class="fab fa-github"></i>
+                <span>GitHub</span>
+            </button>
+        </div>
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="auth__error" @onclick="@(() => errorMessage = string.Empty)">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>@errorMessage</span>
+                <button class="auth__error-close" @onclick="@(() => errorMessage = string.Empty)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+<Toast />
+
+@code {
+    private bool isLogin = true;
+    private bool showPassword = false;
+    private bool isProcessing = false;
+    private string errorMessage = string.Empty;
+    private LoginModel loginModel = new LoginModel();
+    private RegisterModel registerModel = new RegisterModel();
+
+    private void ShowLogin()
+    {
+        isLogin = true;
+        errorMessage = string.Empty;
+        ResetModels();
+    }
+
+    private void ShowRegister()
+    {
+        isLogin = false;
+        errorMessage = string.Empty;
+        ResetModels();
+    }
+
+    private void ResetModels()
+    {
+        loginModel = new LoginModel();
+        registerModel = new RegisterModel();
+        showPassword = false;
+    }
+
+    private void TogglePassword()
+    {
+        showPassword = !showPassword;
+    }
+
+    private async Task HandleLogin()
+    {
+        try
+        {
+            isProcessing = true;
+            errorMessage = string.Empty;
+
+            var token = await AuthClient.LoginAsync(loginModel);
+            if (!string.IsNullOrEmpty(token))
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", "authToken", token);
+                await JS.InvokeVoidAsync("localStorage.setItem", "username", loginModel.Username);
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Login failed. Please check your credentials.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        try
+        {
+            isProcessing = true;
+            errorMessage = string.Empty;
+
+            await AuthClient.RegisterAsync(registerModel);
+
+            var token = await AuthClient.LoginAsync(new LoginModel
+                {
+                    Username = registerModel.Username,
+                    Password = registerModel.Password
+                });
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", "authToken", token);
+                await JS.InvokeVoidAsync("localStorage.setItem", "username", registerModel.Username);
+                Navigation.NavigateTo("/");
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowToast(ex.Message, ToastType.Error, 5000);
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private  Task HandleGitHubSignIn()
+    {
+        try
+        {
+            string clientId = "Ov23lioqYBkl14yR42fI";
+
+            // The redirect URI 
+            var redirectUri = Navigation.ToAbsoluteUri("/github-callback").ToString();
+            var state = Guid.NewGuid().ToString(); 
+            var scope = "user:email";
+
+            // Build the authorization URL.
+            var authorizationUrl = $"https://github.com/login/oauth/authorize?client_id={clientId}" +
+                                   $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+                                   $"&scope={Uri.EscapeDataString(scope)}" +
+                                   $"&state={state}";
+
+            // Redirect the browser to GitHub's authorization endpoint.
+            Navigation.NavigateTo(authorizationUrl, forceLoad: true);
+            return Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+
+            // Inform the user about the issue
+            return Task.CompletedTask;
+        }
+        finally
+        {
+            isProcessing = false;
+            
+        }
+    }
+}
+
+
+
+<style>
+    .auth__input {
+        width: 95%;
+        padding: 0.75rem 1rem;
+        background: var(--background-dark);
+        border: 1px solid #2d3a4f;
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+        .auth__input:focus {
+            outline: none;
+            border-color: var(--text-secondary);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+        }
+</style>

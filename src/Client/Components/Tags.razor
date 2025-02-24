@@ -1,0 +1,58 @@
+﻿<div class="tags-component">
+    <div class="tags-container">
+        @foreach (var tag in PredefinedTags)
+        {
+            <span class="tag-chip @(SelectedTags.Contains(tag) ? "selected" : "")"
+                  @onclick="() => ToggleTag(tag)">
+                @tag
+            </span>
+        }
+    </div>
+   
+</div>
+
+@code {
+    [Parameter]
+    public string TagList { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<string> TagsChanged { get; set; }
+
+    [Parameter]
+    public List<string> PredefinedTags { get; set; } = new List<string>();
+
+    // Internal set for quick lookup and toggle operations.
+    private HashSet<string> SelectedTags = new HashSet<string>();
+
+    protected override void OnParametersSet()
+    {
+        // Initialize SelectedTags from the semicolon-separated Tags string.
+        SelectedTags = TagList.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                           .Select(t => t.Trim())
+                           .ToHashSet();
+    }
+
+    private async Task ToggleTag(string tag)
+    {
+        if (SelectedTags.Contains(tag))
+        {
+            SelectedTags.Remove(tag);
+        }
+        else
+        {
+            SelectedTags.Add(tag);
+        }
+
+        // Update the Tags property as a semicolon-separated string.
+        TagList = string.Join("; ", SelectedTags);
+        await TagsChanged.InvokeAsync(TagList);
+    }
+
+    private async Task ClearTags()
+    {
+        SelectedTags.Clear();
+        TagList = "";
+        await TagsChanged.InvokeAsync(TagList);
+    }
+}
+
