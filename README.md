@@ -1,7 +1,6 @@
 # Sharppad
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)  
-[![Build Status](https://img.shields.io/github/workflow/status/coretravis/sharppad/CI)](https://github.com/coretravis/sharppad/actions)  
 [![GitHub stars](https://img.shields.io/github/stars/coretravis/sharppad)](https://github.com/coretravis/sharppad/stargazers)
 
 Sharppad is an open-source, browser-based interactive development environment for writing, executing, embedding, and sharing C# code.
