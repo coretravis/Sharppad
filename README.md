@@ -220,6 +220,33 @@ Contributions to expand the test suite are welcome.
 
 ---
 
+Below is the updated "Roadmap" section with additional details on the cross-platform mobile app:
+
+---
+
+## Roadmap
+
+- **Mobile Compatibility (Design):**  
+  We plan to optimize Sharppad’s user interface for mobile devices, ensuring a responsive design and seamless interaction on smaller screens.
+
+- **Benchmarking and Exporting:**  
+  Future updates will include robust benchmarking tools to measure code performance, along with the ability to export results in various formats (e.g., JSON, CSV, PDF) for further analysis and sharing.
+
+- **Enhanced Console Tools and Reporting:**  
+  We aim to improve the integrated console with advanced debugging features, detailed logging, and reporting capabilities to provide better insights during code execution.
+
+- **Cross Platform Mobile App:**  
+  We are exploring the development of a dedicated cross-platform mobile application using .NET MAUI Blazor Hybrid. This approach will allow us to leverage the strengths of .NET MAUI to deliver a native, high-performance app across iOS, Android, Windows, and macOS. By utilizing Blazor Hybrid, we can reuse and adapt many of our existing Razor components and Blazor-based UI elements, ensuring a consistent user experience between the web and mobile platforms.  
+  The mobile app will feature:
+  - A responsive, touch-friendly code editor integrated with Monaco Editor capabilities.
+  - Real-time code execution and output streaming, similar to the browser experience.
+  - Seamless synchronization with Sharppad’s cloud services for script management, file uploads, and authentication.
+  - Enhanced mobile-specific optimizations, including offline support and intuitive navigation.
+  
+Your feedback is invaluable as we work on these features, so please share your thoughts or contribute to the discussion on GitHub!
+
+---
+
 ## Contributing
 
 Contributions are welcome! To contribute:
@@ -250,6 +277,15 @@ For more detailed guidelines, please see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
+## Communication
+
+- **GitHub Issues & Discussions:**  
+  Use [GitHub Discussions](https://github.com/coretravis/sharppad/discussions) to ask questions, propose ideas, or get help.
+- **Direct Contact:**  
+  If you need further assistance, feel free to reach out via email at [info@coretravis.work](mailto:info@coretravis.work).
+
+---
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
@@ -258,7 +294,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contact
 
-For questions, suggestions, or issues, please open an issue on GitHub or contact [info@coretravis.work](mailto:info@coretravis.work).
+Please contact [info@coretravis.work](mailto:info@coretravis.work).
 
 ---
 
