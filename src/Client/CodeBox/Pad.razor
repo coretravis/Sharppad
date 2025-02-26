@@ -43,7 +43,7 @@
                Size="Modal.ModalSize.FullScreen"
                Position="Modal.ModalPosition.Top"
                IsOpenChanged="@(value => isScriptLibraryOpen = value)">
-            <ScriptLibrary ScriptSelected="LoadLibraryScript" />
+            <ScriptLibrary ScriptSelected="LoadLibraryScript" UserLoggedIn="@isLoggedIn" />
         </Modal>
 
         <aside class="side-panel @(isPanelOpen ? "open" : "")">
