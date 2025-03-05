@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 
-namespace SharpPad.Server.Services.Streaming;
+namespace SharpPad.Server.Services.Execution.Streaming;
 
 /// <summary>
 /// A simple SignalR hub to handle streaming output and input for code execution sessions.

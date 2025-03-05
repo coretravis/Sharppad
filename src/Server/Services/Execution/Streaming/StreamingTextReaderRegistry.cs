@@ -1,6 +1,6 @@
 ﻿using System.Collections.Concurrent;
 
-namespace SharpPad.Server.Services.Streaming;
+namespace SharpPad.Server.Services.Execution.Streaming;
 
 public static class StreamingTextReaderRegistry
 {

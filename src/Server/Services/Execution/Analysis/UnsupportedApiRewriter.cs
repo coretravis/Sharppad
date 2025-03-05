@@ -2,7 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace SharpPad.Server.Services.Streaming;
+namespace SharpPad.Server.Services.Execution.Analysis;
 
 public class UnsupportedApiRewriter : CSharpSyntaxRewriter
 {
@@ -29,18 +29,24 @@ public class UnsupportedApiRewriter : CSharpSyntaxRewriter
         if (node.Expression is MemberAccessExpressionSyntax memberAccess &&
             IsUnsupportedInvocation(node, out string methodName))
         {
-            if (methodName == "Clear")
-            {
-                // Replace Console.Clear() with a null literal if used in an expression context.
-                return SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression);
-            }
-            else if (methodName == "ReadKey")
+            if (methodName == "ReadKey")
             {
                 // Replace Console.ReadKey() with default(System.ConsoleKeyInfo)
                 return SyntaxFactory.ParseExpression("default(System.ConsoleKeyInfo)");
             }
         }
         return base.VisitInvocationExpression(node);
+    }
+
+    public override SyntaxNode VisitUsingDirective(UsingDirectiveSyntax node)
+    {
+        //// Check if the using directive is for System.IO or any nested namespace.
+        if (node.Name.ToString().StartsWith("System.IO"))
+        {
+            // Return null to remove the using directive.
+            return null;
+        }
+        return base.VisitUsingDirective(node);
     }
 
     // Helper method to detect unsupported invocations.

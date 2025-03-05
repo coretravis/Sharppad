@@ -5,12 +5,13 @@ using SharpPad.Server.Services.Auth;
 using SharpPad.Server.Services.Nugets;
 using SharpPad.Server.Services.Library;
 using SharpPad.Server.Services.Users;
-using SharpPad.Server.Services.Execution.Storage;
 using SharpPad.Server.Services.Execution.Compiler;
 using Microsoft.EntityFrameworkCore;
 using SharpPad.Server.Data;
 using SharpPad.Server.Middleware;
-using SharpPad.Server.Services.Streaming;
+using SharpPad.Server.Services.Execution.Streaming;
+using SharpPad.Server.Services.Execution.Analysis;
+using SharpPad.Server.Services.Execution.FileSystem;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,8 +43,14 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 // Register the NuGet search service
 builder.Services.AddScoped<INugetPackageService, NugetPackageService>();
 
+// Sandbox Services
 builder.Services.AddScoped<IFileService, FileService>();
+builder.Services.AddScoped<IDirectoryService, DirectoryService>();
+builder.Services.AddScoped<IPathService, PathService>();
+
+
 builder.Services.AddScoped<ICompilerVersionService, CompilerVersionService>();
+builder.Services.AddScoped<IStaticAnalysisService, StaticAnalysisService>();
 builder.Services.AddScoped<ICodeExecutionService, CodeExecutionService>();
 builder.Services.AddScoped<IStreamingCodeExecutionService, StreamingCodeExecutionService>();
 builder.Services.AddScoped<IScriptLibraryService, EfScriptLibraryService>();
