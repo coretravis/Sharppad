@@ -2,7 +2,7 @@
 using SharpPad.Shared.Models.Compiler;
 using System.Text;
 
-namespace SharpPad.Server.Services.Streaming;
+namespace SharpPad.Server.Services.Execution.Streaming;
 
 /// <summary>
 /// A custom TextReader that blocks on Console.ReadLine until input is provided by the client.

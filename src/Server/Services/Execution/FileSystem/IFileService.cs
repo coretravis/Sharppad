@@ -1,7 +1,7 @@
 ﻿using System.Text;
 using SharpPad.Shared.Models.Compiler;
 
-namespace SharpPad.Server.Services.Execution.Storage;
+namespace SharpPad.Server.Services.Execution.FileSystem;
 
 public interface IFileService
 {

@@ -2,7 +2,7 @@
 using SharpPad.Shared.Models.Compiler;
 using System.Text;
 
-namespace SharpPad.Server.Services.Streaming;
+namespace SharpPad.Server.Services.Execution.Streaming;
 
 public class StreamingErrorTextWriter(IHubContext<CodeExecutionHub> hubContext, string sessionId, bool immediateFlush = false) : TextWriter
 {
@@ -50,7 +50,7 @@ public class StreamingErrorTextWriter(IHubContext<CodeExecutionHub> hubContext, 
         {
             Content = content.TrimEnd(),
             Timestamp = DateTime.UtcNow,
-            Type = OutputType.Error,
+            Type = OutputType.CompilationError,
             Metadata = new Dictionary<string, string>()
         };
 

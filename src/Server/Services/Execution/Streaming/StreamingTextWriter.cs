@@ -2,7 +2,7 @@
 using SharpPad.Shared.Models.Compiler;
 using System.Text;
 
-namespace SharpPad.Server.Services.Streaming;
+namespace SharpPad.Server.Services.Execution.Streaming;
 
 public class StreamingTextWriter(IHubContext<CodeExecutionHub> hubContext, string sessionId, bool immediateFlush = false) : TextWriter
 {

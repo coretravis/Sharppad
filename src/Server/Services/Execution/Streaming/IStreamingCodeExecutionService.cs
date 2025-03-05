@@ -1,6 +1,6 @@
 ﻿using SharpPad.Shared.Models.Nuget;
 
-namespace SharpPad.Server.Services.Streaming;
+namespace SharpPad.Server.Services.Execution.Streaming;
 
 /// <summary>
 /// Streaming, Interactive based code execution service
