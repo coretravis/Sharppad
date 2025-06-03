@@ -49,14 +49,14 @@ Sharppad is currently in the alpha phase, and many of the features documented ar
 ## Demo
 
 A live demo of Sharppad is available to explore its features in action. Visit the demo at:  
-[Shappard Demo](https://cronux-shappard-h6h3cjdeg0gsbmgu.westeurope-01.azurewebsites.net)  
+[Shappard Demo](https://sharppad-dcafbrbvajccd2hz.westeurope-01.azurewebsites.net/)  
 
 ---
 
 ## Features
 
 - **Interactive Code Editor**  
-  Powered by the [Monaco Editor](https://microsoft.github.io/monaco-editor/), Sharppad offers syntax highlighting, IntelliSense, auto-completion, diagnostics, and ìGo-To Definitionî via Roslyn.
+  Powered by the [Monaco Editor](https://microsoft.github.io/monaco-editor/), Sharppad offers syntax highlighting, IntelliSense, auto-completion, diagnostics, and ‚ÄúGo-To Definition‚Äù via Roslyn.
 
 - **Code Execution**  
   Run your C# scripts on the server with support for multiple .NET compiler versions. Detailed execution output includes standard output, error messages, and generated files.  
@@ -227,7 +227,7 @@ Below is the updated "Roadmap" section with additional details on the cross-plat
 ## Roadmap
 
 - **Mobile Compatibility (Design):**  
-  We plan to optimize Sharppadís user interface for mobile devices, ensuring a responsive design and seamless interaction on smaller screens.
+  We plan to optimize Sharppad‚Äôs user interface for mobile devices, ensuring a responsive design and seamless interaction on smaller screens.
 
 - **Benchmarking and Exporting:**  
   Future updates will include robust benchmarking tools to measure code performance, along with the ability to export results in various formats (e.g., JSON, CSV, PDF) for further analysis and sharing.
@@ -240,7 +240,7 @@ Below is the updated "Roadmap" section with additional details on the cross-plat
   The mobile app will feature:
   - A responsive, touch-friendly code editor integrated with Monaco Editor capabilities.
   - Real-time code execution and output streaming, similar to the browser experience.
-  - Seamless synchronization with Sharppadís cloud services for script management, file uploads, and authentication.
+  - Seamless synchronization with Sharppad‚Äôs cloud services for script management, file uploads, and authentication.
   - Enhanced mobile-specific optimizations, including offline support and intuitive navigation.
   
 Your feedback is invaluable as we work on these features, so please share your thoughts or contribute to the discussion on GitHub!
@@ -298,6 +298,6 @@ Please contact [info@coretravis.work](mailto:info@coretravis.work).
 
 ---
 
-Sharppad is an evolving projectóyour feedback and contributions are invaluable. Happy coding!
+Sharppad is an evolving project‚Äîyour feedback and contributions are invaluable. Happy coding!
 
 [screenshot]: docs/assets/home.png
