@@ -49,7 +49,7 @@ Sharppad is currently in the alpha phase, and many of the features documented ar
 ## Demo
 
 A live demo of Sharppad is available to explore its features in action. Visit the demo at:  
-[Shappard Demo](https://sharppad-dcafbrbvajccd2hz.westeurope-01.azurewebsites.net/)  
+[Shappard Demo](https://cronux-sharp-dme6ccfmehgbf4c2.westeurope-01.azurewebsites.net/)  
 
 ---
 
